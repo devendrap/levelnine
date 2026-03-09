@@ -22,5 +22,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["vite.config.ts", "src/mcp"]
+  "include": ["vite.config.ts", "src/mcp", "src/api"]
 }

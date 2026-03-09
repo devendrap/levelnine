@@ -13,6 +13,7 @@
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@nanostores/solid": "^1.1.1",
     "nanostores": "^1.1.1",
+    "openai": "^6.27.0",
     "solid-js": "^1.9.10",
     "zod": "^4.3.6"
   },
