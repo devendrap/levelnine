@@ -1,9 +1,16 @@
+console.error('[ai-ui] Starting MCP server...')
+
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { ComponentSchema } from '../catalog/schemas.js'
-import { generatePrompt } from '../catalog/prompt.js'
-import { savePreview, getPreview, listPreviews } from './previews.js'
+import { ComponentSchema } from '../catalog/schemas'
+import { generatePrompt } from '../catalog/prompt'
+import { savePreview, getPreview, listPreviews } from './previews'
+
+process.on('uncaughtException', (err) => { console.error('[ai-ui] Uncaught:', err) })
+process.on('unhandledRejection', (err) => { console.error('[ai-ui] Unhandled rejection:', err) })
+
+const catalogText = generatePrompt()
 
 const server = new McpServer({
   name: 'ai-ui',
@@ -17,7 +24,7 @@ server.registerResource('catalog', 'ui://catalog', {
   contents: [{
     uri: 'ui://catalog',
     mimeType: 'text/plain',
-    text: generatePrompt(),
+    text: catalogText,
   }],
 }))
 
@@ -45,38 +52,46 @@ server.registerResource(
   },
 )
 
-// Tool: validate_ui_spec
-server.registerTool('validate_ui_spec', {
-  description: 'Validate a UI JSON spec against the component catalog schema. Returns success or detailed Zod errors.',
-  inputSchema: {
-    spec: z.any().describe('The UI JSON spec to validate'),
-  },
-}, async ({ spec }) => {
-  const result = ComponentSchema.safeParse(spec)
-  if (result.success) {
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ valid: true, spec: result.data }, null, 2) }],
+function parseAndValidate(specInput: string) {
+  let raw: unknown
+  if (typeof specInput === 'string') {
+    try { raw = JSON.parse(specInput) } catch (e: any) {
+      return { success: false as const, error: `Invalid JSON: ${e.message}` }
     }
+  } else {
+    raw = specInput
   }
-  const errors = result.error.issues.map((i: { path: PropertyKey[]; message: string }) => `${i.path.join('.')}: ${i.message}`)
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify({ valid: false, errors }, null, 2) }],
-    isError: true,
+  const result = ComponentSchema.safeParse(raw)
+  if (!result.success) {
+    const errors = result.error.issues.map((i: { path: PropertyKey[]; message: string }) => `${i.path.join('.')}: ${i.message}`)
+    return { success: false as const, error: errors.join('\n') }
   }
-})
+  return { success: true as const, data: result.data }
+}
+
+// Tool: get_catalog
+server.registerTool('get_catalog', {
+  description: 'Get the full UI component catalog. Call this FIRST to learn what components are available before generating a spec.',
+}, async () => ({
+  content: [{ type: 'text' as const, text: catalogText }],
+}))
 
 // Tool: render_preview
 server.registerTool('render_preview', {
-  description: 'Validate and store a UI spec, returning a preview URL. Open this URL in a browser to see the rendered UI.',
+  description: `Validate and render a UI JSON spec. Returns a preview URL.
+
+Call get_catalog first to see available components.
+
+The spec param is a JSON string. Example:
+{"type":"Stack","props":{"gap":"4"},"children":[{"type":"Heading","props":{"level":1,"content":"Hello"}},{"type":"Text","props":{"content":"World","variant":"body"}}]}`,
   inputSchema: {
-    spec: z.any().describe('The UI JSON spec to render'),
+    spec: z.string().describe('JSON string of the UI spec: {"type":"...","props":{...},"children":[...]}'),
   },
 }, async ({ spec }) => {
-  const result = ComponentSchema.safeParse(spec)
+  const result = parseAndValidate(spec)
   if (!result.success) {
-    const errors = result.error.issues.map((i: { path: PropertyKey[]; message: string }) => `${i.path.join('.')}: ${i.message}`)
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ valid: false, errors }, null, 2) }],
+      content: [{ type: 'text' as const, text: JSON.stringify({ valid: false, errors: result.error }, null, 2) }],
       isError: true,
     }
   }
@@ -84,6 +99,25 @@ server.registerTool('render_preview', {
   const url = `http://localhost:5173/preview/${id}`
   return {
     content: [{ type: 'text' as const, text: JSON.stringify({ valid: true, id, url }, null, 2) }],
+  }
+})
+
+// Tool: validate_ui_spec
+server.registerTool('validate_ui_spec', {
+  description: 'Validate a UI JSON spec without rendering. Returns success or errors.',
+  inputSchema: {
+    spec: z.string().describe('JSON string of the UI spec to validate'),
+  },
+}, async ({ spec }) => {
+  const result = parseAndValidate(spec)
+  if (!result.success) {
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify({ valid: false, errors: result.error }, null, 2) }],
+      isError: true,
+    }
+  }
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify({ valid: true }, null, 2) }],
   }
 })
 
@@ -97,5 +131,12 @@ server.registerTool('list_previews', {
   }
 })
 
-const transport = new StdioServerTransport()
-await server.connect(transport)
+try {
+  const transport = new StdioServerTransport()
+  await server.connect(transport)
+  console.error('[ai-ui] MCP server connected and ready')
+  setInterval(() => {}, 1 << 30)
+} catch (err) {
+  console.error('[ai-ui] Failed to start:', err)
+  process.exit(1)
+}
