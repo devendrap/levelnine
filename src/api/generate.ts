@@ -49,5 +49,5 @@ export async function generateUI(opts: { prompt: string; provider: Provider; mod
     }
   }
 
-  throw new Error('Failed to generate valid spec after 3 attempts')
+  throw new Error('Failed to generate valid spec after 3 attempts. Last messages: ' + JSON.stringify(messages.slice(-2).map(m => m.content.slice(0, 300))))
 }

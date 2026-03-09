@@ -100,7 +100,7 @@ const TableSchema = z.object({
 const TabsSchema = z.object({
   type: z.literal('Tabs'),
   props: z.object({
-    tabs: z.array(z.object({ label: z.string(), value: z.string() })).describe('Tab definitions'),
+    tabs: z.array(z.object({ label: z.string(), value: z.string() })).describe('Tab definitions — array of {label: string, value: string}'),
   }),
   children: z.array(UINode).optional(),
 }).describe('Tabbed container – each child maps to a tab panel')
