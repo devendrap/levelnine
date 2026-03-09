@@ -9,10 +9,16 @@ import { Separator } from '../components/Separator'
 import { Stack } from '../components/Stack'
 import { Row } from '../components/Row'
 import { Card } from '../components/Card'
+import { Table } from '../components/Table'
+import { Tabs } from '../components/Tabs'
+import { Progress } from '../components/Progress'
+import { Avatar } from '../components/Avatar'
+import { Dialog } from '../components/Dialog'
 import type { UIComponent } from './types'
 
 const componentMap: Record<string, any> = {
   Heading, Text, Button, Input, Badge, List, Separator, Stack, Row, Card,
+  Table, Tabs, Progress, Avatar, Dialog,
 }
 
 export function Renderer(props: { node: UIComponent }) {

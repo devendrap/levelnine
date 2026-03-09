@@ -25,6 +25,7 @@ dist-ssr
 
 # Environment
 .env*
+!.env.example
 
 # Preview specs (generated at runtime)
 .previews/

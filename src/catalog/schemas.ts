@@ -89,10 +89,52 @@ const CardSchema = z.object({
   children: z.array(UINode).optional(),
 }).describe('Bordered content container')
 
+const TableSchema = z.object({
+  type: z.literal('Table'),
+  props: z.object({
+    columns: z.array(z.string()).describe('Column headers'),
+    rows: z.array(z.array(z.string())).describe('Table rows (array of string arrays)'),
+  }),
+}).describe('Data table with headers and rows')
+
+const TabsSchema = z.object({
+  type: z.literal('Tabs'),
+  props: z.object({
+    tabs: z.array(z.object({ label: z.string(), value: z.string() })).describe('Tab definitions'),
+  }),
+  children: z.array(UINode).optional(),
+}).describe('Tabbed container – each child maps to a tab panel')
+
+const ProgressSchema = z.object({
+  type: z.literal('Progress'),
+  props: z.object({
+    value: z.number().min(0).max(100).describe('Progress percentage 0-100'),
+    label: z.string().optional().describe('Label shown above the bar'),
+  }),
+}).describe('Progress bar indicator')
+
+const AvatarSchema = z.object({
+  type: z.literal('Avatar'),
+  props: z.object({
+    name: z.string().describe('Full name (initials are derived)'),
+    size: z.enum(['sm', 'md', 'lg']).default('md').describe('Avatar size'),
+  }),
+}).describe('Circular avatar showing initials')
+
+const DialogSchema = z.object({
+  type: z.literal('Dialog'),
+  props: z.object({
+    title: z.string().describe('Dialog title'),
+    open: z.boolean().default(true).describe('Whether dialog is visible'),
+  }),
+  children: z.array(UINode).optional(),
+}).describe('Modal dialog overlay')
+
 export const ComponentSchema = z.discriminatedUnion('type', [
   HeadingSchema, TextSchema, ButtonSchema, InputSchema,
   BadgeSchema, ListSchema, SeparatorSchema,
   StackSchema, RowSchema, CardSchema,
+  TableSchema, TabsSchema, ProgressSchema, AvatarSchema, DialogSchema,
 ])
 
 export { UINode }
