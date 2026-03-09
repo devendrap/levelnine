@@ -24,6 +24,7 @@ const ButtonSchema = z.object({
     label: z.string().describe('Button text'),
     variant: z.enum(['default', 'outline', 'ghost']).default('default').describe('Button style variant'),
     size: z.enum(['sm', 'md', 'lg']).default('md').describe('Button size'),
+    action: z.string().optional().describe('Action to trigger on click (e.g. toggleTheme)'),
   }),
 }).describe('Clickable button')
 
@@ -34,6 +35,7 @@ const InputSchema = z.object({
     placeholder: z.string().optional().describe('Placeholder text'),
     type: z.enum(['text', 'email', 'password', 'number', 'url']).default('text').describe('Input type'),
     required: z.boolean().default(false).describe('Whether input is required'),
+    bind: z.string().optional().describe('State key to bind input value to (e.g. "username")'),
   }),
 }).describe('Text input field')
 

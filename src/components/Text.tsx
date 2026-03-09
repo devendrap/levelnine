@@ -1,3 +1,6 @@
+import { useStore } from '@nanostores/solid'
+import { $formData, resolveBindings } from '../stores/ui'
+
 const variants: Record<string, string> = {
   body: 'text-base text-gray-700',
   caption: 'text-sm text-gray-500',
@@ -5,6 +8,11 @@ const variants: Record<string, string> = {
 }
 
 export function Text(props: { content: string; variant?: string }) {
+  const formData = useStore($formData)
+  const resolved = () => {
+    formData() // subscribe to changes
+    return resolveBindings(props.content)
+  }
   const v = () => props.variant ?? 'body'
-  return <p class={variants[v()] ?? variants.body}>{props.content}</p>
+  return <p class={variants[v()] ?? variants.body}>{resolved()}</p>
 }

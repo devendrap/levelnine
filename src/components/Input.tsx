@@ -1,6 +1,13 @@
 import { Show } from 'solid-js'
+import { $formData } from '../stores/ui'
 
-export function Input(props: { label?: string; placeholder?: string; type?: string; required?: boolean }) {
+export function Input(props: { label?: string; placeholder?: string; type?: string; required?: boolean; bind?: string }) {
+  const handleInput = (e: InputEvent) => {
+    if (props.bind) {
+      $formData.setKey(props.bind, (e.currentTarget as HTMLInputElement).value)
+    }
+  }
+
   return (
     <div class="flex flex-col gap-1.5">
       <Show when={props.label}>
@@ -12,7 +19,9 @@ export function Input(props: { label?: string; placeholder?: string; type?: stri
         type={props.type ?? 'text'}
         placeholder={props.placeholder}
         required={props.required}
-        class="rounded-md border border-gray-300 px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+        value={props.bind ? ($formData.get()[props.bind] ?? '') : undefined}
+        onInput={handleInput}
+        class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
       />
     </div>
   )
