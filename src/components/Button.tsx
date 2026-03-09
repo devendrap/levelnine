@@ -1,9 +1,9 @@
 import { runAction } from '../stores/ui'
 
-const variants: Record<string, string> = {
-  default: 'bg-gray-900 text-white hover:bg-gray-800',
-  outline: 'border border-gray-300 text-gray-700 hover:bg-gray-50',
-  ghost: 'text-gray-700 hover:bg-gray-100',
+const variants: Record<string, Record<string, string>> = {
+  default: { "background-color": "var(--ui-text)", color: "var(--ui-bg)" },
+  outline: { "background-color": "transparent", color: "var(--ui-text-secondary)", "border": "1px solid var(--ui-border)" },
+  ghost: { "background-color": "transparent", color: "var(--ui-text-secondary)" },
 }
 
 const sizes: Record<string, string> = {
@@ -15,7 +15,8 @@ const sizes: Record<string, string> = {
 export function Button(props: { label: string; variant?: string; size?: string; action?: string }) {
   return (
     <button
-      class={`inline-flex items-center justify-center rounded-md font-medium transition-colors cursor-pointer ${variants[props.variant ?? 'default']} ${sizes[props.size ?? 'md']}`}
+      class={`inline-flex items-center justify-center rounded-md font-medium transition-colors cursor-pointer hover:opacity-80 ${sizes[props.size ?? 'md']}`}
+      style={variants[props.variant ?? 'default']}
       onClick={() => props.action && runAction(props.action)}
     >
       {props.label}

@@ -56,7 +56,7 @@ export function App() {
         <Show when={error()}>
           <pre class="text-red-500 mb-4 text-sm font-mono whitespace-pre-wrap bg-red-50 p-3 rounded-lg border border-red-200">{error()}</pre>
         </Show>
-        <div class={`rounded-lg p-4 transition-colors ${theme() === 'dark' ? 'bg-gray-900 text-white' : 'bg-white'}`}>
+        <div class={`rounded-lg p-4 transition-colors ${theme() === 'dark' ? 'dark' : ''}`} style={{ "background-color": "var(--ui-bg)" }}>
           <Show when={parsed()}>{(node) => <Renderer node={node()} />}</Show>
         </div>
       </div>

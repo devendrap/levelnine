@@ -11,7 +11,7 @@ const sizes: Record<number, string> = {
 
 export function Heading(props: { level: number; content: string }) {
   return (
-    <Dynamic component={`h${props.level}` as any} class={`${sizes[props.level] ?? sizes[1]} text-gray-900`}>
+    <Dynamic component={`h${props.level}` as any} class={sizes[props.level] ?? sizes[1]} style={{ color: "var(--ui-text)" }}>
       {props.content}
     </Dynamic>
   )

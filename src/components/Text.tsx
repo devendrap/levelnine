@@ -1,18 +1,32 @@
 import { useStore } from '@nanostores/solid'
-import { $formData, resolveBindings } from '../stores/ui'
+import { $formData } from '../stores/ui'
 
 const variants: Record<string, string> = {
-  body: 'text-base text-gray-700',
-  caption: 'text-sm text-gray-500',
-  code: 'font-mono text-sm bg-gray-100 px-1.5 py-0.5 rounded text-gray-800',
+  body: 'text-base',
+  caption: 'text-sm',
+  code: 'font-mono text-sm px-1.5 py-0.5 rounded',
+}
+
+const variantColors: Record<string, string> = {
+  body: 'var(--ui-text-secondary)',
+  caption: 'var(--ui-text-muted)',
+  code: 'var(--ui-text)',
 }
 
 export function Text(props: { content: string; variant?: string }) {
   const formData = useStore($formData)
-  const resolved = () => {
-    formData() // subscribe to changes
-    return resolveBindings(props.content)
-  }
+  const resolved = () =>
+    props.content.replace(/\$(\w+)/g, (_, key) => formData()[key] ?? '')
   const v = () => props.variant ?? 'body'
-  return <p class={variants[v()] ?? variants.body}>{resolved()}</p>
+  return (
+    <p
+      class={variants[v()] ?? variants.body}
+      style={{
+        color: variantColors[v()] ?? variantColors.body,
+        ...(v() === 'code' ? { "background-color": "var(--ui-bg-muted)" } : {}),
+      }}
+    >
+      {resolved()}
+    </p>
+  )
 }

@@ -10,7 +10,3 @@ export const builtinActions: Record<string, () => void> = {
 export function runAction(name: string) {
   builtinActions[name]?.()
 }
-
-export function resolveBindings(text: string): string {
-  return text.replace(/\$(\w+)/g, (_, key) => $formData.get()[key] ?? '')
-}
