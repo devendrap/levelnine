@@ -369,7 +369,7 @@
     { "type": "Heading", "props": { "level": 2, "content": "Dialog" } },
     {
       "type": "Dialog",
-      "props": { "title": "Confirm Submission", "open": false },
+      "props": { "title": "Confirm Submission", "trigger": "Open Submission Dialog", "open": false },
       "children": [
         { "type": "Text", "props": { "content": "Are you sure you want to submit this engagement for partner review? This action cannot be undone.", "variant": "body" } },
         {

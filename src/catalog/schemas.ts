@@ -125,10 +125,11 @@ const DialogSchema = z.object({
   type: z.literal('Dialog'),
   props: z.object({
     title: z.string().describe('Dialog title'),
-    open: z.boolean().default(true).describe('Whether dialog is visible'),
+    trigger: z.string().optional().describe('Button text to open the dialog (shown when closed)'),
+    open: z.boolean().default(false).describe('Whether dialog starts open'),
   }),
   children: z.array(UINode).optional(),
-}).describe('Modal dialog overlay')
+}).describe('Modal dialog with trigger button — click to open, Escape or backdrop to close')
 
 const CheckboxSchema = z.object({
   type: z.literal('Checkbox'),
