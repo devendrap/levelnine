@@ -189,12 +189,67 @@ const AccordionSchema = z.object({
   }),
 }).describe('Collapsible content sections')
 
+const SwitchSchema = z.object({
+  type: z.literal('Switch'),
+  props: z.object({
+    label: z.string().describe('Switch label text'),
+    bind: z.string().optional().describe('State key to bind toggle state to (stores "true"/"false")'),
+    defaultChecked: z.boolean().default(false).describe('Initial toggle state'),
+  }),
+}).describe('Toggle switch for on/off values')
+
+const TooltipSchema = z.object({
+  type: z.literal('Tooltip'),
+  props: z.object({
+    label: z.string().describe('Trigger text shown inline'),
+    content: z.string().describe('Tooltip text shown on hover'),
+  }),
+  children: z.array(UINode).optional(),
+}).describe('Hover tooltip with informational text')
+
+const RadioGroupSchema = z.object({
+  type: z.literal('RadioGroup'),
+  props: z.object({
+    label: z.string().optional().describe('Group label'),
+    options: z.array(z.string()).describe('Radio options to choose from'),
+    bind: z.string().optional().describe('State key to bind selected value to'),
+    direction: z.enum(['vertical', 'horizontal']).default('vertical').describe('Layout direction'),
+  }),
+}).describe('Single-select radio button group')
+
+const SkeletonSchema = z.object({
+  type: z.literal('Skeleton'),
+  props: z.object({
+    lines: z.number().min(1).max(10).default(3).describe('Number of skeleton lines (text variant)'),
+    height: z.string().optional().describe('Height of each line or avatar size (e.g. "40px")'),
+    variant: z.enum(['text', 'card', 'avatar']).default('text').describe('Skeleton shape variant'),
+  }),
+}).describe('Loading placeholder skeleton')
+
+const PaginationSchema = z.object({
+  type: z.literal('Pagination'),
+  props: z.object({
+    totalPages: z.number().min(1).describe('Total number of pages'),
+    bind: z.string().optional().describe('State key to bind current page number to'),
+  }),
+}).describe('Page navigation control')
+
+const LinkSchema = z.object({
+  type: z.literal('Link'),
+  props: z.object({
+    label: z.string().describe('Link text'),
+    href: z.string().describe('URL to navigate to'),
+    external: z.boolean().default(false).describe('Open in new tab with external icon'),
+  }),
+}).describe('Styled hyperlink')
+
 export const ComponentSchema = z.discriminatedUnion('type', [
   HeadingSchema, TextSchema, ButtonSchema, InputSchema,
   BadgeSchema, ListSchema, SeparatorSchema,
   StackSchema, RowSchema, CardSchema,
   TableSchema, TabsSchema, ProgressSchema, AvatarSchema, DialogSchema,
   CheckboxSchema, SelectSchema, TextareaSchema, DatePickerSchema, AlertSchema, AccordionSchema,
+  SwitchSchema, TooltipSchema, RadioGroupSchema, SkeletonSchema, PaginationSchema, LinkSchema,
 ])
 
 export { UINode }

@@ -20,12 +20,19 @@ import { Textarea } from '../components/Textarea'
 import { DatePicker } from '../components/DatePicker'
 import { Alert } from '../components/Alert'
 import { Accordion } from '../components/Accordion'
+import { Switch } from '../components/Switch'
+import { Tooltip } from '../components/Tooltip'
+import { RadioGroup } from '../components/RadioGroup'
+import { Skeleton } from '../components/Skeleton'
+import { Pagination } from '../components/Pagination'
+import { Link } from '../components/Link'
 import type { UIComponent } from './types'
 
 const componentMap: Record<string, any> = {
   Heading, Text, Button, Input, Badge, List, Separator, Stack, Row, Card,
   Table, Tabs, Progress, Avatar, Dialog,
   Checkbox, Select, Textarea, DatePicker, Alert, Accordion,
+  Switch, Tooltip, RadioGroup, Skeleton, Pagination, Link,
 }
 
 export function Renderer(props: { node: UIComponent }) {
