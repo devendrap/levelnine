@@ -130,11 +130,71 @@ const DialogSchema = z.object({
   children: z.array(UINode).optional(),
 }).describe('Modal dialog overlay')
 
+const CheckboxSchema = z.object({
+  type: z.literal('Checkbox'),
+  props: z.object({
+    label: z.string().describe('Checkbox label text'),
+    bind: z.string().optional().describe('State key to bind checked state to (stores "true"/"false")'),
+    defaultChecked: z.boolean().default(false).describe('Initial checked state'),
+  }),
+}).describe('Checkbox toggle for boolean values')
+
+const SelectSchema = z.object({
+  type: z.literal('Select'),
+  props: z.object({
+    label: z.string().optional().describe('Select label'),
+    options: z.array(z.string()).describe('List of selectable options'),
+    placeholder: z.string().optional().describe('Placeholder text when no option selected'),
+    bind: z.string().optional().describe('State key to bind selected value to'),
+  }),
+}).describe('Dropdown select from a list of options')
+
+const TextareaSchema = z.object({
+  type: z.literal('Textarea'),
+  props: z.object({
+    label: z.string().optional().describe('Textarea label'),
+    placeholder: z.string().optional().describe('Placeholder text'),
+    rows: z.number().min(1).max(20).default(3).describe('Number of visible text rows'),
+    required: z.boolean().default(false).describe('Whether textarea is required'),
+    bind: z.string().optional().describe('State key to bind textarea value to'),
+  }),
+}).describe('Multi-line text input')
+
+const DatePickerSchema = z.object({
+  type: z.literal('DatePicker'),
+  props: z.object({
+    label: z.string().optional().describe('Date picker label'),
+    bind: z.string().optional().describe('State key to bind date value to (ISO format YYYY-MM-DD)'),
+    required: z.boolean().default(false).describe('Whether date is required'),
+    min: z.string().optional().describe('Minimum date (YYYY-MM-DD)'),
+    max: z.string().optional().describe('Maximum date (YYYY-MM-DD)'),
+  }),
+}).describe('Date input picker')
+
+const AlertSchema = z.object({
+  type: z.literal('Alert'),
+  props: z.object({
+    title: z.string().optional().describe('Alert title'),
+    message: z.string().describe('Alert message text'),
+    variant: z.enum(['info', 'success', 'warning', 'error']).default('info').describe('Alert severity variant'),
+  }),
+  children: z.array(UINode).optional(),
+}).describe('Contextual alert banner with icon')
+
+const AccordionSchema = z.object({
+  type: z.literal('Accordion'),
+  props: z.object({
+    items: z.array(z.object({ title: z.string(), content: z.string() })).describe('Accordion sections — array of {title: string, content: string}'),
+    multiple: z.boolean().default(false).describe('Allow multiple sections open at once'),
+  }),
+}).describe('Collapsible content sections')
+
 export const ComponentSchema = z.discriminatedUnion('type', [
   HeadingSchema, TextSchema, ButtonSchema, InputSchema,
   BadgeSchema, ListSchema, SeparatorSchema,
   StackSchema, RowSchema, CardSchema,
   TableSchema, TabsSchema, ProgressSchema, AvatarSchema, DialogSchema,
+  CheckboxSchema, SelectSchema, TextareaSchema, DatePickerSchema, AlertSchema, AccordionSchema,
 ])
 
 export { UINode }

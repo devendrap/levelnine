@@ -14,11 +14,18 @@ import { Tabs } from '../components/Tabs'
 import { Progress } from '../components/Progress'
 import { Avatar } from '../components/Avatar'
 import { Dialog } from '../components/Dialog'
+import { Checkbox } from '../components/Checkbox'
+import { Select } from '../components/Select'
+import { Textarea } from '../components/Textarea'
+import { DatePicker } from '../components/DatePicker'
+import { Alert } from '../components/Alert'
+import { Accordion } from '../components/Accordion'
 import type { UIComponent } from './types'
 
 const componentMap: Record<string, any> = {
   Heading, Text, Button, Input, Badge, List, Separator, Stack, Row, Card,
   Table, Tabs, Progress, Avatar, Dialog,
+  Checkbox, Select, Textarea, DatePicker, Alert, Accordion,
 }
 
 export function Renderer(props: { node: UIComponent }) {
