@@ -11,7 +11,7 @@ bun install
 bun run dev        # http://localhost:4321
 ```
 
-Requires PostgreSQL (port 5433) and optionally MinIO for file uploads. See `.env.example` for configuration.
+Requires PostgreSQL (port 5433) and optionally MinIO for file uploads. Run `bun run server/db/migrate.ts` to apply migrations. See `.env.example` for configuration.
 
 ## Architecture
 
@@ -20,7 +20,8 @@ Requires PostgreSQL (port 5433) and optionally MinIO for file uploads. See `.env
 1. **Catalog** — Zod v4 schemas define 33 UI components as a discriminated union. Each schema has `type`, `props`, and optional `children`.
 2. **Renderer** — A recursive Solid.js component maps `{ type, props, children }` JSON nodes to actual components via `componentMap`.
 3. **Container Manager** — Chat with an LLM to design industry-specific applications. The AI generates JSON schemas for entity types (forms, tables, workflows) which are validated and rendered in real-time.
-4. **Entity System** — Generated schemas become entity types stored in PostgreSQL. Users create entities (records) against those types, rendered by the same JSON→component pipeline.
+4. **Exploration Engine** — AI-driven multi-dimensional domain exploration. The AI systematically analyzes 8 dimensions (Structure, Roles, Workflows, Compliance, Documents, Integrations, Reporting, Edge Cases) with 4 steps each (Generate, Self-Review, Gap Analysis, Human Gate). Admin gates progress at each step.
+5. **Entity System** — Generated schemas become entity types stored in PostgreSQL. Users create entities (records) against those types, rendered by the same JSON→component pipeline. Generic entity relations (many-to-many) replace rigid parent hierarchies.
 
 ### JSON-to-UI Approach
 
@@ -51,7 +52,7 @@ src/
 │   ├── dashboard.astro    ← Entity dashboard
 │   ├── containers/        ← Container manager
 │   │   ├── index.astro    ← Container list + empty state
-│   │   └── [id].astro     ← Chat + manifest tabs
+│   │   └── [id].astro     ← Chat + explore + manifest tabs
 │   ├── preview/[id].astro ← Rendered preview by ID
 │   └── api/               ← API endpoints
 │       └── v1/            ← Versioned REST API
@@ -61,6 +62,9 @@ src/
 │       ├── ContainerHeader.astro  ← Server-rendered header
 │       ├── ManifestTab.astro      ← Server-rendered entity cards
 │       ├── ChatPanel.tsx          ← Solid island: chat UI
+│       ├── ExplorationPanel.tsx   ← Solid island: exploration UI
+│       ├── GateDecisionCard.tsx   ← Solid island: gate decision buttons
+│       ├── DimensionProgress.tsx  ← Solid: dimension progress pills
 │       ├── ManifestActions.tsx    ← Solid island: action buttons
 │       ├── EntityTypeActions.tsx  ← Solid island: per-entity actions
 │       └── SidebarCreateForm.tsx  ← Solid island: create form
@@ -71,8 +75,13 @@ src/
 ├── mcp/                   ← MCP stdio server
 └── index.css              ← Design tokens (--ui-* CSS variables)
 server/
-├── db/                    ← PostgreSQL pool + migrations
-├── modules/               ← containers, entities, auth, generate
+├── db/                    ← PostgreSQL pool + migrations (5 migrations)
+├── modules/
+│   ├── containers/        ← Container CRUD, chat, lock/launch
+│   ├── entities/          ← Entity CRUD
+│   ├── relations/         ← Generic entity relations (many-to-many)
+│   ├── exploration/       ← Exploration engine, prompts, dimension configs
+│   └── auth/              ← JWT auth, registration
 └── middleware/             ← Auth guards
 ```
 
@@ -82,11 +91,28 @@ server/
 
 Navigate to `/containers` to create industry-specific applications through AI-guided conversation. The LLM generates entity type schemas (forms, tables, workflows) that render as live previews in the chat. Review, refine, and lock containers for deployment.
 
-### 2. Split-Pane Editor
+### 2. Exploration Loop
+
+From any container, click the **Explore** tab to start an AI-driven domain exploration. The AI systematically explores 8 dimensions:
+
+| Dimension | Focus |
+|-----------|-------|
+| Structure | Core entity types, data models, hierarchy |
+| Roles & Access | User roles, permissions, authorization |
+| Workflows | Business processes, state machines, approvals |
+| Compliance | Regulatory requirements, standards, audit trails |
+| Documents | Document types, templates, versioning, retention |
+| Integrations | External systems, APIs, data sync |
+| Reporting | Dashboards, KPIs, analytics, scheduled reports |
+| Edge Cases | Exception handling, error recovery, boundaries |
+
+Each dimension runs 4 steps: **Generate** → **Self-Review** → **Gap Analysis** → **Human Gate**. At each gate, the admin chooses: Continue, Go Deeper, Skip, or Stop. Entity types, relations, and scope items are merged into the container manifest as the exploration progresses. Manifest snapshots are captured after each gate decision.
+
+### 3. Split-Pane Editor
 
 Open `/` to edit JSON specs directly. Left pane: JSON editor. Right pane: live rendered preview. Validated against the component catalog on every keystroke.
 
-### 3. MCP Server (Claude Desktop)
+### 4. MCP Server (Claude Desktop)
 
 ```bash
 bun run mcp
@@ -97,8 +123,10 @@ Exposes tools over stdio:
 - `render_preview` — validate a spec and get a preview URL
 - `validate_ui_spec` — check a spec without saving
 - `list_previews` — list stored preview IDs
+- `link_entities` / `unlink_entities` / `get_entity_relations` — manage entity relations
+- Container + entity CRUD tools
 
-### 4. HTTP API
+### 5. HTTP API
 
 ```bash
 # Generate UI from natural language
@@ -110,6 +138,24 @@ curl -X POST http://localhost:4321/api/generate \
 curl -X POST http://localhost:4321/api/v1/containers/:id/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Build a trucking management app", "provider": "ollama"}'
+
+# Start exploration
+curl -X POST http://localhost:4321/api/v1/containers/:id/exploration/start
+
+# Run next exploration step (SSE stream)
+curl -X POST http://localhost:4321/api/v1/containers/:id/exploration/next \
+  -H "Content-Type: application/json" \
+  -d '{"run_id": "...", "provider": "ollama"}'
+
+# Submit gate decision
+curl -X POST http://localhost:4321/api/v1/containers/:id/exploration/gate/:stepId \
+  -H "Content-Type: application/json" \
+  -d '{"decision": "continue"}'
+
+# Entity relations
+curl -X POST http://localhost:4321/api/v1/relations \
+  -H "Content-Type: application/json" \
+  -d '{"source_entity_id": "...", "target_entity_id": "...", "relation_type": "belongs_to"}'
 ```
 
 ## Components (33)

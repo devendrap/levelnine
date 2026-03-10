@@ -1,5 +1,6 @@
 import { createSignal, Show, For, createMemo, ErrorBoundary } from 'solid-js'
 import { Renderer } from '../renderer/Renderer'
+import Toast, { showToast } from '../components/containers/Toast'
 
 interface EntityTypeDef {
   name: string
@@ -59,7 +60,7 @@ export default function ManifestTableIsland(props: {
     if (res.ok) window.location.reload()
     else {
       const err = await res.json()
-      alert(err.error)
+      showToast(err.error)
     }
   }
 
@@ -157,11 +158,13 @@ export default function ManifestTableIsland(props: {
       window.location.href = data.appUrl
     } else {
       const err = await res.json()
-      alert(err.error)
+      showToast(err.error)
     }
   }
 
   return (
+    <>
+    <Toast />
     <div class="flex-1 flex flex-col overflow-hidden">
       {/* Top bar: title + actions */}
       <div class="flex items-center justify-between px-6 py-4 shrink-0" style={{ 'border-bottom': '1px solid var(--ui-border)' }}>
@@ -595,5 +598,6 @@ export default function ManifestTableIsland(props: {
         </div>
       </Show>
     </div>
+    </>
   )
 }

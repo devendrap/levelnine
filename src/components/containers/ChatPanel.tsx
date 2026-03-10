@@ -2,6 +2,7 @@ import { createSignal, createEffect, Show, For, onMount } from 'solid-js'
 import { SchemaPreviewPanel } from '../SchemaPreviewPanel'
 import { parseMessageSegments, parseEntityTypesFromMessage } from '../../lib/containers/parser'
 import type { Message, MessageSegment } from '../../lib/containers/types'
+import Toast, { showToast } from './Toast'
 
 export default function ChatPanel(props: {
   containerId: string
@@ -108,7 +109,7 @@ export default function ChatPanel(props: {
       }
 
       if (allParsed.length === 0) {
-        alert('No entity types found in conversation. Ask the AI to generate entity types.')
+        showToast('No entity types found in conversation. Ask the AI to generate entity types.', 'info')
         return
       }
 
@@ -122,7 +123,7 @@ export default function ChatPanel(props: {
         window.location.href = `/containers/${props.containerId}?tab=manifest`
       } else {
         const err = await res.json()
-        alert(`Save failed: ${err.error}`)
+        showToast(`Save failed: ${err.error}`)
       }
     } finally {
       setSavingAll(false)
@@ -131,6 +132,7 @@ export default function ChatPanel(props: {
 
   return (
     <>
+      <Toast />
       {/* Messages */}
       <div class="flex-1 overflow-y-auto">
         <div class="max-w-4xl mx-auto px-6 py-6">

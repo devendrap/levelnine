@@ -1,4 +1,6 @@
 import { createSignal, Show, For } from 'solid-js'
+import ConfirmDialog from './ConfirmDialog'
+import Toast, { showToast } from './Toast'
 
 export default function ManifestActions(props: {
   containerId: string
@@ -11,6 +13,7 @@ export default function ManifestActions(props: {
   const [generating, setGenerating] = createSignal(false)
   const [completed, setCompleted] = createSignal(0)
   const [results, setResults] = createSignal<Array<{ name: string; success: boolean; error?: string }>>([])
+  const [confirmLock, setConfirmLock] = createSignal(false)
 
   const provider = () => {
     const el = document.getElementById('provider-select') as HTMLSelectElement | null
@@ -72,13 +75,13 @@ export default function ManifestActions(props: {
     }
   }
 
-  const lockContainer = async () => {
-    if (!confirm(`Lock container and deploy all ${props.totalCount} entity types? This cannot be undone.`)) return
+  const doLock = async () => {
+    setConfirmLock(false)
     const res = await fetch(`/api/v1/containers/${props.containerId}/lock`, { method: 'POST' })
     if (res.ok) window.location.reload()
     else {
       const err = await res.json()
-      alert(err.error)
+      showToast(err.error)
     }
   }
 
@@ -89,7 +92,7 @@ export default function ManifestActions(props: {
       window.location.href = data.appUrl
     } else {
       const err = await res.json()
-      alert(err.error)
+      showToast(err.error)
     }
   }
 
@@ -114,7 +117,7 @@ export default function ManifestActions(props: {
         </Show>
         <Show when={props.allReviewed && props.containerStatus !== 'locked' && props.containerStatus !== 'launched'}>
           <button
-            onClick={lockContainer}
+            onClick={() => setConfirmLock(true)}
             class="px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer hover:opacity-90 transition-opacity"
             style={{
               "background-color": "rgba(34,197,94,0.12)",
@@ -166,17 +169,29 @@ export default function ManifestActions(props: {
             {(r) => (
               <div class="flex items-center gap-2 py-0.5">
                 <span style={{ color: r.success ? '#22C55E' : 'rgba(239,68,68,0.8)' }}>
-                  {r.success ? '✓' : '✗'}
+                  {r.success ? '\u2713' : '\u2717'}
                 </span>
                 <span style={{ color: 'var(--ui-text)' }}>{r.name}</span>
                 <Show when={r.error}>
-                  <span style={{ color: 'var(--ui-text-muted)' }}>— {r.error}</span>
+                  <span style={{ color: 'var(--ui-text-muted)' }}>{'\u2014'} {r.error}</span>
                 </Show>
               </div>
             )}
           </For>
         </div>
       </Show>
+
+      <ConfirmDialog
+        open={confirmLock()}
+        title="Lock Container"
+        message={`Lock container and deploy all ${props.totalCount} entity types? Once locked, entity types cannot be added or removed.`}
+        confirmLabel="Lock"
+        variant="warning"
+        onConfirm={doLock}
+        onCancel={() => setConfirmLock(false)}
+      />
+
+      <Toast />
     </div>
   )
 }

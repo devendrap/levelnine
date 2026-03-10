@@ -3,7 +3,7 @@ import type { Container } from '../../lib/containers/types'
 
 interface Props {
   container: Container
-  activeTab: 'chat' | 'manifest'
+  activeTab: 'chat' | 'manifest' | 'explore'
 }
 
 const { container, activeTab } = Astro.props
@@ -51,6 +51,13 @@ function statusBadge(status: string) {
         style={`background-color:${activeTab === 'chat' ? 'rgba(212,164,74,0.12)' : 'transparent'};color:${activeTab === 'chat' ? 'var(--ui-primary)' : 'var(--ui-text-muted)'}`}
       >
         Chat
+      </a>
+      <a
+        href={`/containers/${container.id}?tab=explore`}
+        class="px-3 py-1.5 rounded-md text-xs font-medium transition-all no-underline"
+        style={`background-color:${activeTab === 'explore' ? 'rgba(212,164,74,0.12)' : 'transparent'};color:${activeTab === 'explore' ? 'var(--ui-primary)' : 'var(--ui-text-muted)'}`}
+      >
+        Explore
       </a>
       <a
         href={`/containers/${container.id}?tab=manifest`}

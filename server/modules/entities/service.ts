@@ -57,7 +57,6 @@ export async function getEntity(id: string): Promise<Entity & { entity_type?: En
 export async function listEntities(filters: {
   type?: string
   container_id?: string
-  parent?: string
   status?: string
   period?: string
   page?: number
@@ -66,7 +65,6 @@ export async function listEntities(filters: {
   return repo.findEntitiesPaginated({
     entity_type_name: filters.type,
     container_id: filters.container_id,
-    parent_entity_id: filters.parent,
     status: filters.status,
     period: filters.period,
     page: filters.page,
@@ -81,7 +79,6 @@ export async function createEntity(data: {
   name: string
   content?: Record<string, any>
   metadata?: Record<string, any>
-  parent_entity_id?: string
   period?: string
   created_by_user_id?: string
 }): Promise<Entity> {
@@ -101,18 +98,12 @@ export async function createEntity(data: {
     throw new ServiceError(`Entity "${data.name}" already exists for this type`, 409)
   }
 
-  if (data.parent_entity_id) {
-    const parent = await repo.findEntityById(data.parent_entity_id)
-    if (!parent) throw new ServiceError('Parent entity not found', 404)
-  }
-
   return repo.insertEntity({
     entity_type_id: typeId,
     container_id: data.container_id,
     name: data.name,
     content: data.content,
     metadata: data.metadata,
-    parent_entity_id: data.parent_entity_id,
     period: data.period,
     created_by_user_id: data.created_by_user_id,
   })
@@ -125,7 +116,6 @@ export async function updateEntity(
     status?: string
     content?: Record<string, any>
     metadata?: Record<string, any>
-    parent_entity_id?: string | null
     period?: string | null
     last_modified_by_user_id?: string
   },

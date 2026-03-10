@@ -82,7 +82,6 @@ export async function findEntitiesPaginated(filters: {
   entity_type_id?: string
   entity_type_name?: string
   container_id?: string
-  parent_entity_id?: string
   status?: string
   period?: string
   page?: number
@@ -107,10 +106,6 @@ export async function findEntitiesPaginated(filters: {
   if (filters.container_id) {
     wheres.push(`e.container_id = $${idx++}`)
     params.push(filters.container_id)
-  }
-  if (filters.parent_entity_id) {
-    wheres.push(`e.parent_entity_id = $${idx++}`)
-    params.push(filters.parent_entity_id)
   }
   if (filters.status) {
     wheres.push(`e.status = $${idx++}`)
@@ -153,7 +148,6 @@ export async function insertEntity(data: {
   name: string
   content?: Record<string, any>
   metadata?: Record<string, any>
-  parent_entity_id?: string
   period?: string
   status?: string
   s3_key?: string
@@ -161,8 +155,8 @@ export async function insertEntity(data: {
   created_by_user_id?: string
 }): Promise<Entity> {
   const result = await query<Entity>(
-    `INSERT INTO entities (entity_type_id, container_id, name, content, metadata, parent_entity_id, period, status, s3_key, original_filename, created_by_user_id, last_modified_by_user_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+    `INSERT INTO entities (entity_type_id, container_id, name, content, metadata, period, status, s3_key, original_filename, created_by_user_id, last_modified_by_user_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
      RETURNING *`,
     [
       data.entity_type_id,
@@ -170,7 +164,6 @@ export async function insertEntity(data: {
       data.name,
       JSON.stringify(data.content ?? {}),
       JSON.stringify(data.metadata ?? {}),
-      data.parent_entity_id ?? null,
       data.period ?? null,
       data.status ?? 'draft',
       data.s3_key ?? null,
@@ -188,7 +181,6 @@ export async function updateEntity(
     status?: string
     content?: Record<string, any>
     metadata?: Record<string, any>
-    parent_entity_id?: string | null
     period?: string | null
     s3_key?: string | null
     original_filename?: string | null
@@ -204,7 +196,6 @@ export async function updateEntity(
   if (data.status !== undefined) { sets.push(`status = $${idx++}`); params.push(data.status) }
   if (data.content !== undefined) { sets.push(`content = $${idx++}`); params.push(JSON.stringify(data.content)) }
   if (data.metadata !== undefined) { sets.push(`metadata = $${idx++}`); params.push(JSON.stringify(data.metadata)) }
-  if (data.parent_entity_id !== undefined) { sets.push(`parent_entity_id = $${idx++}`); params.push(data.parent_entity_id) }
   if (data.period !== undefined) { sets.push(`period = $${idx++}`); params.push(data.period) }
   if (data.s3_key !== undefined) { sets.push(`s3_key = $${idx++}`); params.push(data.s3_key) }
   if (data.original_filename !== undefined) { sets.push(`original_filename = $${idx++}`); params.push(data.original_filename) }

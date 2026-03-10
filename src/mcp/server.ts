@@ -8,6 +8,7 @@ import { generatePrompt } from '../catalog/prompt'
 import { savePreview, getPreview, listPreviews } from './previews'
 import * as entityService from '../../server/modules/entities/service'
 import * as containerService from '../../server/modules/containers/service'
+import * as relationService from '../../server/modules/relations/service'
 
 process.on('uncaughtException', (err) => { console.error('[ai-ui] Uncaught:', err) })
 process.on('unhandledRejection', (err) => { console.error('[ai-ui] Unhandled rejection:', err) })
@@ -186,15 +187,14 @@ server.registerTool('list_entities', {
   inputSchema: {
     type: z.string().describe('Filter by entity type name').optional(),
     status: z.string().describe('Filter by status: draft|active|review|approved|archived').optional(),
-    parent: z.string().describe('Filter by parent entity ID').optional(),
     period: z.string().describe('Filter by period').optional(),
     page: z.string().describe('Page number (default 1)').optional(),
     page_size: z.string().describe('Items per page (default 25, max 100)').optional(),
   },
-}, async ({ type, status, parent, period, page, page_size }) => {
+}, async ({ type, status, period, page, page_size }) => {
   try {
     const result = await entityService.listEntities({
-      type, status, parent, period,
+      type, status, period,
       page: page ? parseInt(page) : undefined,
       pageSize: page_size ? parseInt(page_size) : undefined,
     })
@@ -222,15 +222,13 @@ server.registerTool('create_entity', {
     content: z.string().describe('JSON string of form data (key-value pairs matching the schema bind fields)').optional(),
     status: z.string().describe('Initial status: draft|active|review|approved|archived (default draft)').optional(),
     period: z.string().describe('Period label (e.g. "2026-Q1")').optional(),
-    parent_entity_id: z.string().describe('UUID of parent entity for hierarchical data').optional(),
   },
-}, async ({ entity_type_name, name, content, status, period, parent_entity_id }) => {
+}, async ({ entity_type_name, name, content, status, period }) => {
   try {
     const data: any = { entity_type_name, name }
     if (content) data.content = JSON.parse(content)
     if (status) data.status = status
     if (period) data.period = period
-    if (parent_entity_id) data.parent_entity_id = parent_entity_id
     const entity = await entityService.createEntity(data)
     return ok(entity)
   } catch (e: any) { return err(e.message) }
@@ -357,6 +355,53 @@ server.registerTool('lock_container', {
   try {
     const container = await containerService.lockContainer(container_id)
     return ok(container)
+  } catch (e: any) { return err(e.message) }
+})
+
+// ─── Relation Tools ─────────────────────────────────────────
+
+server.registerTool('link_entities', {
+  description: 'Create a relation between two entities (e.g. parent, belongs_to, depends_on).',
+  inputSchema: {
+    source_entity_id: z.string().describe('UUID of the source entity'),
+    target_entity_id: z.string().describe('UUID of the target entity'),
+    relation_type: z.string().describe('Relation type (e.g. "parent", "belongs_to", "depends_on")'),
+    metadata: z.string().describe('Optional JSON string of relation metadata').optional(),
+  },
+}, async ({ source_entity_id, target_entity_id, relation_type, metadata }) => {
+  try {
+    const parsedMeta = metadata ? JSON.parse(metadata) : undefined
+    const relation = await relationService.linkEntities({
+      source_entity_id, target_entity_id, relation_type, metadata: parsedMeta,
+    })
+    return ok(relation)
+  } catch (e: any) { return err(e.message) }
+})
+
+server.registerTool('unlink_entities', {
+  description: 'Remove a relation between two entities.',
+  inputSchema: {
+    source_entity_id: z.string().describe('UUID of the source entity'),
+    target_entity_id: z.string().describe('UUID of the target entity'),
+    relation_type: z.string().describe('Relation type to remove'),
+  },
+}, async ({ source_entity_id, target_entity_id, relation_type }) => {
+  try {
+    await relationService.unlinkEntities(source_entity_id, target_entity_id, relation_type)
+    return ok({ unlinked: true })
+  } catch (e: any) { return err(e.message) }
+})
+
+server.registerTool('get_entity_relations', {
+  description: 'Get all relations for an entity. Returns source and target relations.',
+  inputSchema: {
+    entity_id: z.string().describe('UUID of the entity'),
+    direction: z.string().describe('Filter direction: source|target|both (default both)').optional(),
+  },
+}, async ({ entity_id, direction }) => {
+  try {
+    const relations = await relationService.getEntityRelations(entity_id, (direction as any) ?? 'both')
+    return ok(relations)
   } catch (e: any) { return err(e.message) }
 })
 

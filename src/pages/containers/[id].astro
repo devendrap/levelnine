@@ -4,6 +4,7 @@ import Sidebar from '../../components/containers/Sidebar.astro'
 import ContainerHeader from '../../components/containers/ContainerHeader.astro'
 import ManifestTab from '../../components/containers/ManifestTab.astro'
 import ChatPanel from '../../components/containers/ChatPanel.tsx'
+import ExplorationPanel from '../../components/containers/ExplorationPanel.tsx'
 import { CM_STYLES } from '../../lib/containers/styles'
 import { authenticate } from '../../../server/middleware/auth'
 import * as containerService from '../../../server/modules/containers/service'
@@ -11,7 +12,7 @@ import type { Container, Message } from '../../lib/containers/types'
 import '../../index.css'
 
 const { id } = Astro.params
-const tab = (Astro.url.searchParams.get('tab') ?? 'chat') as 'chat' | 'manifest'
+const tab = (Astro.url.searchParams.get('tab') ?? 'chat') as 'chat' | 'manifest' | 'explore'
 const enhanceName = Astro.url.searchParams.get('enhance')
 const action = Astro.url.searchParams.get('action')
 
@@ -89,6 +90,12 @@ if (action === 'generate-schemas') {
           initialMessages={messages}
           initialInput={initialInput || undefined}
           autoSend={autoSend || undefined}
+        />
+      ) : tab === 'explore' ? (
+        <ExplorationPanel
+          client:only="solid-js"
+          containerId={id!}
+          containerStatus={container.status}
         />
       ) : (
         <ManifestTab container={container} />
