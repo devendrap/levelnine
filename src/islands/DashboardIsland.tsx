@@ -27,6 +27,22 @@ async function fetchEntityTypes(): Promise<EntityType[]> {
   return res.json()
 }
 
+interface AppContainer {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  status: string
+  manifest: any
+}
+
+async function fetchLaunchedApps(): Promise<AppContainer[]> {
+  const res = await fetch('/api/v1/containers')
+  if (!res.ok) return []
+  const all = await res.json()
+  return all.filter((c: any) => c.status === 'launched' && c.slug)
+}
+
 const statusColors: Record<string, { bg: string; text: string }> = {
   draft: { bg: 'var(--ui-bg-muted)', text: 'var(--ui-text-muted)' },
   active: { bg: 'var(--ui-primary-light)', text: 'var(--ui-primary)' },
@@ -38,6 +54,7 @@ const statusColors: Record<string, { bg: string; text: string }> = {
 export default function DashboardIsland() {
   const [entities] = createResource(fetchEntities)
   const [types] = createResource(fetchEntityTypes)
+  const [apps] = createResource(fetchLaunchedApps)
   const [user, setUser] = createSignal<any>(null)
 
   // Try fetching current user
@@ -99,6 +116,43 @@ export default function DashboardIsland() {
       </header>
 
       <div class="max-w-6xl mx-auto px-6 py-8">
+        {/* Launched Apps */}
+        <Show when={(apps() ?? []).length > 0}>
+          <div class="mb-8">
+            <h2 class="text-sm font-semibold mb-3" style={{ color: "var(--ui-text)" }}>Launched Apps</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <For each={apps() ?? []}>
+                {(app) => {
+                  const etCount = app.manifest?.entity_types?.length ?? 0
+                  return (
+                    <a
+                      href={`/apps/${app.slug}`}
+                      class="rounded-xl p-5 border transition-all hover:opacity-90"
+                      style={{ "background-color": "var(--ui-card-bg)", "border-color": "var(--ui-border)" }}
+                    >
+                      <div class="flex items-center gap-2 mb-2">
+                        <div
+                          class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
+                          style={{ "background-color": "rgba(212,164,74,0.12)", color: "var(--ui-primary)" }}
+                        >
+                          {app.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div class="min-w-0">
+                          <div class="text-sm font-semibold truncate" style={{ color: "var(--ui-text)" }}>{app.name}</div>
+                          <div class="text-[11px]" style={{ color: "var(--ui-text-muted)" }}>{etCount} entity types</div>
+                        </div>
+                      </div>
+                      {app.description && (
+                        <p class="text-xs truncate" style={{ color: "var(--ui-text-placeholder)" }}>{app.description}</p>
+                      )}
+                    </a>
+                  )
+                }}
+              </For>
+            </div>
+          </div>
+        </Show>
+
         {/* Stats row */}
         <div class="grid grid-cols-3 gap-4 mb-8">
           <div class="p-4 rounded-xl border" style={{ "background-color": "var(--ui-card-bg)", "border-color": "var(--ui-border)" }}>

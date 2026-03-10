@@ -1,12 +1,32 @@
-import { createSignal, Show, For } from 'solid-js'
+import { createSignal, Show, For, onMount } from 'solid-js'
+import { useStore } from '@nanostores/solid'
+import { $formData } from '../stores/ui'
 
-export function FileUpload(props: { label?: string; accept?: string; multiple?: boolean; maxSizeMB?: number }) {
-  const [files, setFiles] = createSignal<{ name: string; size: string }[]>([])
+export function FileUpload(props: { label?: string; accept?: string; multiple?: boolean; maxSizeMB?: number; bind?: string; disabled?: boolean }) {
+  const formData = useStore($formData)
+  const [files, setFiles] = createSignal<{ name: string; size: string; s3Key?: string }[]>([])
   const [dragOver, setDragOver] = createSignal(false)
   const [error, setError] = createSignal('')
+  const [uploading, setUploading] = createSignal(false)
   let inputRef!: HTMLInputElement
 
   const maxBytes = () => (props.maxSizeMB ?? 10) * 1024 * 1024
+
+  // Seed from existing formData bind value
+  onMount(() => {
+    if (props.bind) {
+      const existing = formData()[props.bind]
+      if (existing) {
+        try {
+          const parsed = JSON.parse(existing)
+          if (Array.isArray(parsed)) setFiles(parsed)
+          else if (parsed.s3Key) setFiles([parsed])
+        } catch {
+          if (existing) setFiles([{ name: existing, size: '', s3Key: existing }])
+        }
+      }
+    }
+  })
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B'
@@ -14,8 +34,25 @@ export function FileUpload(props: { label?: string; accept?: string; multiple?: 
     return (bytes / 1048576).toFixed(1) + ' MB'
   }
 
-  const handleFiles = (fileList: FileList | null) => {
-    if (!fileList) return
+  const uploadToS3 = async (file: File): Promise<{ s3Key: string; originalFilename: string } | null> => {
+    const fd = new FormData()
+    fd.append('file', file)
+    try {
+      const res = await fetch('/api/v1/upload', { method: 'POST', body: fd })
+      if (res.ok) return res.json()
+      return null
+    } catch { return null }
+  }
+
+  const updateBindValue = (fileList: { name: string; size: string; s3Key?: string }[]) => {
+    if (!props.bind) return
+    if (fileList.length === 0) $formData.setKey(props.bind, '')
+    else if (fileList.length === 1) $formData.setKey(props.bind, JSON.stringify({ s3Key: fileList[0].s3Key, name: fileList[0].name }))
+    else $formData.setKey(props.bind, JSON.stringify(fileList.map(f => ({ s3Key: f.s3Key, name: f.name }))))
+  }
+
+  const handleFiles = async (fileList: FileList | null) => {
+    if (!fileList || props.disabled) return
     setError('')
     const arr = Array.from(fileList)
     const oversized = arr.find(f => f.size > maxBytes())
@@ -23,14 +60,29 @@ export function FileUpload(props: { label?: string; accept?: string; multiple?: 
       setError(`"${oversized.name}" exceeds ${props.maxSizeMB ?? 10}MB limit`)
       return
     }
-    setFiles(prev => [
-      ...prev,
-      ...arr.map(f => ({ name: f.name, size: formatSize(f.size) })),
-    ])
+
+    setUploading(true)
+    const uploaded: { name: string; size: string; s3Key?: string }[] = []
+    for (const file of arr) {
+      const result = await uploadToS3(file)
+      if (result) {
+        uploaded.push({ name: file.name, size: formatSize(file.size), s3Key: result.s3Key })
+      } else {
+        uploaded.push({ name: file.name, size: formatSize(file.size) })
+        setError(`Failed to upload "${file.name}"`)
+      }
+    }
+    const newFiles = [...files(), ...uploaded]
+    setFiles(newFiles)
+    updateBindValue(newFiles)
+    setUploading(false)
   }
 
   const removeFile = (idx: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== idx))
+    if (props.disabled) return
+    const newFiles = files().filter((_, i) => i !== idx)
+    setFiles(newFiles)
+    updateBindValue(newFiles)
   }
 
   return (
@@ -41,35 +93,49 @@ export function FileUpload(props: { label?: string; accept?: string; multiple?: 
 
       {/* Drop zone */}
       <div
-        class="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 cursor-pointer transition-all duration-150"
+        class="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 transition-all duration-150"
         style={{
-          "border-color": dragOver() ? 'var(--ui-primary)' : 'var(--ui-border)',
-          "background-color": dragOver() ? 'color-mix(in srgb, var(--ui-primary) 5%, var(--ui-bg))' : 'var(--ui-bg-subtle)',
+          "border-color": props.disabled ? 'var(--ui-border)' : dragOver() ? 'var(--ui-primary)' : 'var(--ui-border)',
+          "background-color": props.disabled ? 'var(--ui-bg-muted)' : dragOver() ? 'color-mix(in srgb, var(--ui-primary) 5%, var(--ui-bg))' : 'var(--ui-bg-subtle)',
+          cursor: props.disabled ? 'not-allowed' : 'pointer',
+          opacity: props.disabled ? '0.6' : '1',
         }}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragOver={(e) => { e.preventDefault(); if (!props.disabled) setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer?.files ?? null) }}
-        onClick={() => inputRef.click()}
+        onClick={() => !props.disabled && inputRef.click()}
       >
-        {/* Upload icon */}
-        <svg viewBox="0 0 24 24" fill="none" style={{ width: '32px', height: '32px', color: 'var(--ui-text-muted)' }}>
-          <path d="M12 16V4m0 0L8 8m4-4l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M20 16.7v1.3a2 2 0 01-2 2H6a2 2 0 01-2-2v-1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-        </svg>
-        <div class="text-center">
-          <p class="text-sm font-medium" style={{ color: 'var(--ui-text)' }}>
-            Drop files here or <span style={{ color: 'var(--ui-primary)' }}>browse</span>
-          </p>
-          <p class="text-xs mt-1" style={{ color: 'var(--ui-text-muted)' }}>
-            {props.accept ? `Accepted: ${props.accept}` : 'Any file type'} · Max {props.maxSizeMB ?? 10}MB
-          </p>
-        </div>
+        <Show when={uploading()} fallback={
+          <>
+            {/* Upload icon */}
+            <svg viewBox="0 0 24 24" fill="none" style={{ width: '32px', height: '32px', color: 'var(--ui-text-muted)' }}>
+              <path d="M12 16V4m0 0L8 8m4-4l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M20 16.7v1.3a2 2 0 01-2 2H6a2 2 0 01-2-2v-1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+            <div class="text-center">
+              <p class="text-sm font-medium" style={{ color: 'var(--ui-text)' }}>
+                Drop files here or <span style={{ color: 'var(--ui-primary)' }}>browse</span>
+              </p>
+              <p class="text-xs mt-1" style={{ color: 'var(--ui-text-muted)' }}>
+                {props.accept ? `Accepted: ${props.accept}` : 'Any file type'} · Max {props.maxSizeMB ?? 10}MB
+              </p>
+            </div>
+          </>
+        }>
+          {/* Uploading spinner */}
+          <svg class="animate-spin" viewBox="0 0 24 24" fill="none" style={{ width: '32px', height: '32px', color: 'var(--ui-primary)' }}>
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" opacity="0.25" />
+            <path d="M12 2a10 10 0 019.8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <p class="text-sm font-medium" style={{ color: 'var(--ui-text-muted)' }}>Uploading...</p>
+        </Show>
         <input
           ref={inputRef}
           type="file"
           accept={props.accept}
           multiple={props.multiple ?? false}
           class="hidden"
+          disabled={props.disabled}
           onChange={(e) => handleFiles(e.currentTarget.files)}
         />
       </div>

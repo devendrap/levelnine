@@ -1,0 +1,123 @@
+---
+import type { Container, EntityType } from '../../../server/core/types/index'
+
+interface Props {
+  container: Container
+  entityTypes: EntityType[]
+  activeType?: string
+}
+
+const { container, entityTypes, activeType } = Astro.props
+const slug = container.slug!
+const navigation = container.manifest?.navigation ?? []
+
+// Build a set of entity type names that exist in the DB
+const typeNames = new Set(entityTypes.map(et => et.name))
+
+// If no navigation defined, show all entity types flat
+const hasNav = navigation.length > 0
+---
+
+<aside
+  class="shrink-0 flex flex-col h-full overflow-y-auto"
+  style="width:260px;background-color:var(--ui-bg-subtle);border-right:1px solid var(--ui-border)"
+>
+  <!-- App name -->
+  <div class="px-5 py-4" style="border-bottom:1px solid var(--ui-border)">
+    <a href={`/apps/${slug}`} class="block">
+      <h2 class="text-sm font-bold truncate" style="color:var(--ui-text)">
+        {container.name}
+      </h2>
+      {container.description && (
+        <p class="text-[11px] mt-0.5 truncate" style="color:var(--ui-text-muted)">
+          {container.description}
+        </p>
+      )}
+    </a>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="flex-1 px-3 py-3 space-y-4">
+    <!-- Dashboard link -->
+    <a
+      href={`/apps/${slug}`}
+      class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all"
+      style={!activeType
+        ? "background-color:rgba(212,164,74,0.1);color:var(--ui-primary)"
+        : "color:var(--ui-text-muted)"
+      }
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/>
+        <rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/>
+      </svg>
+      Dashboard
+    </a>
+
+    {hasNav ? (
+      /* Grouped navigation from manifest */
+      navigation.map((group) => (
+        <div>
+          <div
+            class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider"
+            style="color:var(--ui-text-placeholder)"
+          >
+            {group.label}
+          </div>
+          <div class="space-y-0.5 mt-1">
+            {group.children.filter(name => typeNames.has(name)).map((name) => {
+              const et = entityTypes.find(e => e.name === name)
+              const isActive = activeType === name
+              const label = et?.description
+                ? name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                : name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+              return (
+                <a
+                  href={`/apps/${slug}/${name}`}
+                  class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all"
+                  style={isActive
+                    ? "background-color:rgba(212,164,74,0.1);color:var(--ui-primary);font-weight:600"
+                    : "color:var(--ui-text-muted)"
+                  }
+                >
+                  <span class="w-1.5 h-1.5 rounded-full shrink-0" style={`background-color:${isActive ? 'var(--ui-primary)' : 'var(--ui-border)'}`} />
+                  {label}
+                </a>
+              )
+            })}
+          </div>
+        </div>
+      ))
+    ) : (
+      /* Flat list of all entity types */
+      <div class="space-y-0.5">
+        {entityTypes.map((et) => {
+          const isActive = activeType === et.name
+          const label = et.name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          return (
+            <a
+              href={`/apps/${slug}/${et.name}`}
+              class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all"
+              style={isActive
+                ? "background-color:rgba(212,164,74,0.1);color:var(--ui-primary);font-weight:600"
+                : "color:var(--ui-text-muted)"
+              }
+            >
+              <span class="w-1.5 h-1.5 rounded-full shrink-0" style={`background-color:${isActive ? 'var(--ui-primary)' : 'var(--ui-border)'}`} />
+              {label}
+            </a>
+          )
+        })}
+      </div>
+    )}
+  </nav>
+
+  <!-- Footer -->
+  <div class="px-5 py-3" style="border-top:1px solid var(--ui-border)">
+    <span class="text-[10px]" style="color:var(--ui-text-placeholder)">
+      Powered by ai-ui
+    </span>
+  </div>
+</aside>

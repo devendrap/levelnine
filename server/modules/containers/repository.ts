@@ -36,6 +36,7 @@ export async function updateContainer(
   if (data.description !== undefined) { sets.push(`description = $${idx++}`); params.push(data.description) }
   if (data.status !== undefined) { sets.push(`status = $${idx++}`); params.push(data.status) }
   if (data.manifest !== undefined) { sets.push(`manifest = $${idx++}`); params.push(JSON.stringify(data.manifest)) }
+  if ((data as any).slug !== undefined) { sets.push(`slug = $${idx++}`); params.push((data as any).slug) }
 
   if (sets.length === 0) return findContainerById(id)
 
@@ -44,6 +45,11 @@ export async function updateContainer(
     `UPDATE containers SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
     params,
   )
+  return result.rows[0] ?? null
+}
+
+export async function findContainerBySlug(slug: string): Promise<Container | null> {
+  const result = await query<Container>('SELECT * FROM containers WHERE slug = $1', [slug])
   return result.rows[0] ?? null
 }
 

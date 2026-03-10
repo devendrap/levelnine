@@ -14,6 +14,7 @@ export interface EntityType {
   name: string
   description: string | null
   schema: Record<string, any> | null
+  container_id: string | null
   is_active: boolean
   created_at: Date
   updated_at: Date
@@ -22,6 +23,7 @@ export interface EntityType {
 export interface Entity {
   id: string
   entity_type_id: string
+  container_id: string | null
   name: string
   status: 'draft' | 'active' | 'review' | 'approved' | 'archived'
   content: Record<string, any>
@@ -40,8 +42,9 @@ export interface Entity {
 export interface Container {
   id: string
   name: string
+  slug: string | null
   description: string | null
-  status: 'draft' | 'review' | 'locked'
+  status: 'draft' | 'review' | 'locked' | 'launched'
   manifest: ContainerManifest
   created_by_user_id: string | null
   created_at: Date
@@ -68,6 +71,19 @@ export interface ContainerMessage {
   content: string
   metadata: Record<string, any>
   created_at: Date
+}
+
+export interface AppUser {
+  id: string
+  container_id: string
+  email: string
+  name: string
+  password_hash: string
+  role: 'admin' | 'editor' | 'viewer'
+  is_active: boolean
+  invited_by: string | null
+  created_at: Date
+  updated_at: Date
 }
 
 export interface PaginatedResult<T> {

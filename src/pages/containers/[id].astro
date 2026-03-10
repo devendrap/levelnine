@@ -36,7 +36,8 @@ let initialInput = ''
 let autoSend = ''
 
 if (enhanceName) {
-  initialInput = `Generate the full detailed JSON schema for "${enhanceName}". Include every field a practitioner would need, use appropriate ai-ui components (Tabs for sections, Select for dropdowns, DatePicker for dates, FileUpload for documents, RichText for notes). Make it production-ready.`
+  const template = import.meta.env.ENHANCE_PROMPT ?? 'Generate the full detailed JSON schema for "{{name}}". Include every field a practitioner would need, use appropriate ai-ui components (Tabs for sections, Select for dropdowns, DatePicker for dates, FileUpload for documents, RichText for notes). Make it production-ready.'
+  initialInput = template.replace(/\{\{name\}\}/g, enhanceName)
 }
 
 if (action === 'generate-schemas') {
@@ -45,11 +46,11 @@ if (action === 'generate-schemas') {
   if (missing.length > 0) {
     const batch = missing.slice(0, 3)
     const names = batch.map(e => e.name)
-    autoSend = `Generate full JSON schemas for these ${batch.length} entity types: ${names.join(', ')}
-
-For each, use appropriate ai-ui components (Tabs, Select, DatePicker, FileUpload, RichText, Table, Checkbox). Be thorough but concise.
-
-IMPORTANT: In the json:entity_types summary block at the end, include ONLY these ${batch.length} entity types with their schemas. Do NOT include the other ${entityTypes.length - batch.length} entity types.`
+    const template = import.meta.env.GENERATE_SCHEMAS_PROMPT ?? 'Generate full JSON schemas for these {{count}} entity types: {{names}}\n\nFor each, use appropriate ai-ui components (Tabs, Select, DatePicker, FileUpload, RichText, Table, Checkbox). Be thorough but concise.\n\nIMPORTANT: In the json:entity_types summary block at the end, include ONLY these {{count}} entity types with their schemas. Do NOT include the other {{remaining}} entity types.'
+    autoSend = template
+      .replace(/\{\{count\}\}/g, String(batch.length))
+      .replace(/\{\{names\}\}/g, names.join(', '))
+      .replace(/\{\{remaining\}\}/g, String(entityTypes.length - batch.length))
   }
 }
 ---
@@ -57,10 +58,28 @@ IMPORTANT: In the json:entity_types summary block at the end, include ONLY these
 <Base title={`ai-ui — ${container.name}`}>
   <style is:inline set:html={CM_STYLES} />
   <div class="dark flex h-screen" style="background-color:var(--ui-bg);font-family:var(--ui-font)">
-    <Sidebar containers={containers} selectedId={id} />
+    {/* Sidebar with collapse support */}
+    <div id="sidebar-wrapper" class="shrink-0 flex" style="transition:margin-left 0.2s ease">
+      <Sidebar containers={containers} selectedId={id} />
+    </div>
 
     <main class="flex-1 flex flex-col min-w-0">
-      <ContainerHeader container={container} activeTab={tab} />
+      {/* Header with hamburger */}
+      <div class="flex items-center shrink-0">
+        <button
+          id="sidebar-toggle"
+          class="w-10 h-10 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity shrink-0 ml-2"
+          style="color:var(--ui-text-muted);background:none;border:none"
+          title="Toggle sidebar"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </svg>
+        </button>
+        <div class="flex-1 min-w-0">
+          <ContainerHeader container={container} activeTab={tab} />
+        </div>
+      </div>
 
       {tab === 'chat' ? (
         <ChatPanel
@@ -76,4 +95,19 @@ IMPORTANT: In the json:entity_types summary block at the end, include ONLY these
       )}
     </main>
   </div>
+
+  <script is:inline>
+    const toggle = document.getElementById('sidebar-toggle')
+    const wrapper = document.getElementById('sidebar-wrapper')
+    if (toggle && wrapper) {
+      const sidebar = wrapper.querySelector('aside')
+      let collapsed = false
+      toggle.addEventListener('click', () => {
+        collapsed = !collapsed
+        if (sidebar) {
+          wrapper.style.marginLeft = collapsed ? `-${sidebar.offsetWidth}px` : '0'
+        }
+      })
+    }
+  </script>
 </Base>

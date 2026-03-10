@@ -1,4 +1,4 @@
-import { createSignal, Show, For, onMount } from 'solid-js'
+import { createSignal, createEffect, Show, For, onMount } from 'solid-js'
 import { SchemaPreviewPanel } from '../SchemaPreviewPanel'
 import { parseMessageSegments, parseEntityTypesFromMessage } from '../../lib/containers/parser'
 import type { Message, MessageSegment } from '../../lib/containers/types'
@@ -289,40 +289,169 @@ export default function ChatPanel(props: {
       </div>
 
       {/* Input area */}
-      <div class="shrink-0 border-t" style={{ "border-color": "var(--ui-border)", "background-color": "rgba(11,15,26,0.4)" }}>
+      <div
+        class="shrink-0"
+        style={{
+          "background": "linear-gradient(to top, rgba(11,15,26,0.6) 0%, rgba(11,15,26,0.3) 100%)",
+          "backdrop-filter": "blur(12px)",
+          "-webkit-backdrop-filter": "blur(12px)",
+        }}
+      >
         <Show when={props.containerStatus !== 'locked'}
           fallback={
-            <div class="text-center py-4">
-              <span class="text-xs" style={{ color: "var(--ui-text-muted)" }}>
-                Container is locked — no further modifications allowed.
-              </span>
+            <div class="text-center py-5">
+              <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full" style={{ "background-color": "rgba(240,237,232,0.04)" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ui-text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span class="text-xs" style={{ color: "var(--ui-text-muted)" }}>
+                  Container is locked — no further modifications allowed
+                </span>
+              </div>
             </div>
           }
         >
           <div class="max-w-4xl mx-auto px-6 py-4">
+            {/* Input container */}
             <div
-              class="flex items-end gap-3 rounded-xl border px-4 py-3"
-              style={{ "background-color": "rgba(240,237,232,0.02)", "border-color": "var(--ui-border)" }}
+              class="relative rounded-2xl transition-all"
+              style={{
+                background: "rgba(240,237,232,0.03)",
+                border: input().trim()
+                  ? "1px solid rgba(212,164,74,0.35)"
+                  : "1px solid rgba(240,237,232,0.08)",
+                "box-shadow": input().trim()
+                  ? "0 0 20px rgba(212,164,74,0.06), 0 0 0 1px rgba(212,164,74,0.08)"
+                  : "0 1px 3px rgba(0,0,0,0.2)",
+              }}
             >
+              {/* Textarea */}
               <textarea
-                ref={inputRef}
+                ref={(el) => {
+                  inputRef = el
+                  // Auto-resize
+                  const resize = () => {
+                    el.style.height = 'auto'
+                    el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+                  }
+                  el.addEventListener('input', resize)
+                  // Initial resize for pre-filled content
+                  setTimeout(resize, 0)
+                }}
                 value={input()}
                 onInput={(e) => setInput(e.currentTarget.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Describe your industry, refine schemas, or ask for specific entity types..."
                 rows={1}
-                class="flex-1 bg-transparent outline-none resize-none text-sm leading-relaxed"
-                style={{ color: "var(--ui-text)", "min-height": "24px", "max-height": "120px" }}
+                class="w-full bg-transparent outline-none resize-none text-sm leading-relaxed px-5 pt-4 pb-14"
+                style={{
+                  color: "var(--ui-text)",
+                  "min-height": "56px",
+                  "max-height": "200px",
+                  "font-family": "var(--ui-font)",
+                  "letter-spacing": "0.01em",
+                }}
                 disabled={sending()}
               />
-              <button
-                onClick={() => sendMessage()}
-                disabled={sending() || !input().trim()}
-                class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer transition-all disabled:opacity-30"
-                style={{ "background-color": "var(--ui-primary)" }}
+
+              {/* Bottom toolbar */}
+              <div
+                class="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 py-2.5"
               >
-                <span style={{ color: "#0B0F1A", "font-size": "14px", "font-weight": "bold" }}>&uarr;</span>
-              </button>
+                {/* Left: hints */}
+                <div class="flex items-center gap-3">
+                  <Show when={!sending()}>
+                    <span class="text-[11px] flex items-center gap-1.5" style={{ color: "var(--ui-text-placeholder)" }}>
+                      <kbd
+                        class="inline-flex items-center justify-center px-1.5 py-0.5 rounded"
+                        style={{
+                          "font-family": "var(--ui-font)",
+                          "font-size": "10px",
+                          "background-color": "rgba(240,237,232,0.06)",
+                          border: "1px solid rgba(240,237,232,0.08)",
+                          color: "var(--ui-text-muted)",
+                          "line-height": "1",
+                        }}
+                      >
+                        Enter
+                      </kbd>
+                      send
+                    </span>
+                    <span class="text-[11px] flex items-center gap-1.5" style={{ color: "var(--ui-text-placeholder)" }}>
+                      <kbd
+                        class="inline-flex items-center justify-center px-1.5 py-0.5 rounded"
+                        style={{
+                          "font-family": "var(--ui-font)",
+                          "font-size": "10px",
+                          "background-color": "rgba(240,237,232,0.06)",
+                          border: "1px solid rgba(240,237,232,0.08)",
+                          color: "var(--ui-text-muted)",
+                          "line-height": "1",
+                        }}
+                      >
+                        Shift+Enter
+                      </kbd>
+                      new line
+                    </span>
+                  </Show>
+                  <Show when={sending()}>
+                    <div class="flex items-center gap-2">
+                      <div
+                        class="w-3.5 h-3.5 rounded-full border-2 border-t-transparent animate-spin"
+                        style={{ "border-color": "var(--ui-primary)", "border-top-color": "transparent" }}
+                      />
+                      <span class="text-[11px] font-medium" style={{ color: "var(--ui-primary)" }}>
+                        Generating response...
+                      </span>
+                    </div>
+                  </Show>
+                </div>
+
+                {/* Right: send button */}
+                <button
+                  onClick={() => sendMessage()}
+                  disabled={sending() || !input().trim()}
+                  class="flex items-center gap-2 rounded-xl cursor-pointer transition-all disabled:opacity-20"
+                  style={{
+                    padding: input().trim() ? "6px 16px" : "6px 10px",
+                    "background": input().trim()
+                      ? "linear-gradient(135deg, var(--ui-primary) 0%, var(--ui-primary-hover) 100%)"
+                      : "rgba(240,237,232,0.06)",
+                    "box-shadow": input().trim()
+                      ? "0 2px 8px rgba(212,164,74,0.25)"
+                      : "none",
+                  }}
+                >
+                  <svg
+                    width="16" height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke={input().trim() ? "#0B0F1A" : "var(--ui-text-muted)"}
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                  <Show when={input().trim()}>
+                    <span
+                      class="text-xs font-semibold"
+                      style={{ color: "#0B0F1A", "letter-spacing": "0.02em" }}
+                    >
+                      Send
+                    </span>
+                  </Show>
+                </button>
+              </div>
+            </div>
+
+            {/* Subtle branding line */}
+            <div class="flex items-center justify-center mt-2.5">
+              <span class="text-[10px]" style={{ color: "rgba(240,237,232,0.15)" }}>
+                ai-ui schema architect
+              </span>
             </div>
           </div>
         </Show>

@@ -25,6 +25,12 @@ export async function getContainer(id: string): Promise<Container> {
   return c
 }
 
+export async function getContainerBySlug(slug: string): Promise<Container> {
+  const c = await repo.findContainerBySlug(slug)
+  if (!c) throw new ContainerError('App not found', 404)
+  return c
+}
+
 export async function createContainer(data: {
   name: string
   description?: string
@@ -63,7 +69,7 @@ export async function getMessages(containerId: string): Promise<ContainerMessage
   return repo.findMessagesByContainer(containerId)
 }
 
-const SYSTEM_PROMPT = `You are the world's foremost expert in whatever industry the admin describes. You have decades of hands-on experience, know every regulation, standard, workflow, edge case, and best practice inside out. You think like a veteran practitioner who has seen it all — not a generalist summarizing Wikipedia.
+const DEFAULT_SYSTEM_PROMPT = `You are the world's foremost expert in whatever industry the admin describes. You have decades of hands-on experience, know every regulation, standard, workflow, edge case, and best practice inside out. You think like a veteran practitioner who has seen it all — not a generalist summarizing Wikipedia.
 
 Your mission: help the admin build a **production-grade** industry application by defining a comprehensive container structure for ai-ui, a schema-driven UI platform.
 
@@ -166,6 +172,8 @@ Rules for this block:
 - The name must be snake_case with underscores
 - This block is for machine consumption — keep it clean, no comments`
 
+const SYSTEM_PROMPT = process.env.CONTAINER_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT
+
 export async function chat(
   containerId: string,
   userMessage: string,
@@ -213,6 +221,109 @@ export async function chat(
   return { reply, container: updatedContainer }
 }
 
+// ============================================================================
+// Parallel Schema Generation
+// ============================================================================
+
+/** Generate schemas for all missing entity types in parallel */
+export async function generateAllSchemas(
+  containerId: string,
+  provider: Provider = 'ollama',
+  model?: string,
+  concurrency: number = 5,
+  onProgress?: (result: { name: string; success: boolean; error?: string; index: number; total: number }) => void,
+): Promise<{ container: Container; results: Array<{ name: string; success: boolean; error?: string }> }> {
+  const container = await repo.findContainerById(containerId)
+  if (!container) throw new ContainerError('Container not found', 404)
+  if (container.status === 'locked') throw new ContainerError('Cannot modify locked container', 403)
+
+  const manifest = (container.manifest ?? {}) as ContainerManifest
+  const missing = (manifest.entity_types ?? []).filter(et => !et.schema)
+
+  if (missing.length === 0) {
+    return { container, results: [] }
+  }
+
+  const { client } = getClient(provider)
+  const modelId = getModel(provider, model)
+
+  // Build a focused prompt for single entity type schema generation
+  const schemaPrompt = process.env.PARALLEL_SCHEMA_PROMPT ?? `Generate the full detailed JSON schema for "{{name}}" ({{description}}).
+
+Use appropriate ai-ui components (Tabs for sections, Select for dropdowns, DatePicker for dates, FileUpload for documents, RichText for notes, Table for tabular data, Checkbox for booleans, Grid for side-by-side fields, Card for grouped sections).
+
+Key fields to include: {{key_fields}}
+
+Respond with ONLY a valid JSON object — no markdown, no explanation, no code fences. The JSON should be an ai-ui spec starting with {"type": "Container", ...}.`
+
+  // Worker function for one entity type
+  const generateOne = async (et: { name: string; description?: string; key_fields?: string[] }): Promise<{ name: string; success: boolean; schema?: any; error?: string }> => {
+    try {
+      const prompt = schemaPrompt
+        .replace(/\{\{name\}\}/g, et.name)
+        .replace(/\{\{description\}\}/g, et.description ?? et.name)
+        .replace(/\{\{key_fields\}\}/g, (et.key_fields ?? []).join(', ') || 'infer from domain')
+
+      const response = await client.chat.completions.create({
+        model: modelId,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
+      })
+
+      const reply = response.choices[0]?.message?.content?.trim()
+      if (!reply) return { name: et.name, success: false, error: 'Empty LLM response' }
+
+      // Extract JSON from response (handle optional code fences)
+      const jsonMatch = reply.match(/```(?:json)?\s*([\s\S]*?)```/) ?? [null, reply]
+      const jsonStr = jsonMatch[1]!.trim()
+      const schema = JSON.parse(jsonStr)
+
+      return { name: et.name, success: true, schema }
+    } catch (e: any) {
+      return { name: et.name, success: false, error: e.message }
+    }
+  }
+
+  // Run sequentially, saving each schema to DB immediately after generation
+  const results: Array<{ name: string; success: boolean; schema?: any; error?: string }> = []
+  const total = missing.length
+
+  for (let i = 0; i < total; i++) {
+    const result = await generateOne(missing[i])
+    results.push(result)
+
+    // Save to DB immediately so progress persists even if connection drops
+    if (result.success && result.schema) {
+      const fresh = await repo.findContainerById(containerId)
+      if (fresh) {
+        const m = (fresh.manifest ?? {}) as ContainerManifest
+        const et = (m.entity_types ?? []).find(e => e.name === result.name)
+        if (et) {
+          et.schema = result.schema
+          await repo.updateContainer(containerId, { manifest: m })
+        }
+      }
+    }
+
+    onProgress?.({ name: result.name, success: result.success, error: result.error, index: i + 1, total })
+  }
+
+  // Log a summary message to chat history
+  const successful = results.filter(r => r.success && r.schema)
+  const summary = results.map(r => r.success ? `✓ ${r.name}` : `✗ ${r.name}: ${r.error}`).join('\n')
+  await repo.insertMessage({
+    container_id: containerId,
+    role: 'assistant',
+    content: `**Schema generation complete** (${successful.length}/${results.length} succeeded)\n\n${summary}`,
+  })
+
+  const updated = await repo.findContainerById(containerId)
+  return { container: updated!, results: results.map(r => ({ name: r.name, success: r.success, error: r.error })) }
+}
+
 async function tryExtractManifest(
   containerId: string,
   reply: string,
@@ -250,16 +361,16 @@ export async function lockContainer(id: string): Promise<Container> {
 
   // Lock container AND create real entity_types in a single transaction
   const result = await transaction(async (client) => {
-    // Create entity_types rows (upsert — skip if name already exists)
+    // Create entity_types rows scoped to this container
     for (const et of manifest.entity_types!) {
       await client.query(
-        `INSERT INTO entity_types (name, description, schema)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (name) DO UPDATE SET
+        `INSERT INTO entity_types (name, description, schema, container_id)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (name, COALESCE(container_id, '00000000-0000-0000-0000-000000000000')) DO UPDATE SET
            description = EXCLUDED.description,
            schema = EXCLUDED.schema,
            updated_at = NOW()`,
-        [et.name, et.description, et.schema ? JSON.stringify(et.schema) : null],
+        [et.name, et.description, et.schema ? JSON.stringify(et.schema) : null, id],
       )
     }
 
@@ -272,6 +383,32 @@ export async function lockContainer(id: string): Promise<Container> {
   })
 
   return result
+}
+
+// ============================================================================
+// Launch — make a locked container into a live app
+// ============================================================================
+
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+export async function launchContainer(id: string): Promise<Container> {
+  const container = await repo.findContainerById(id)
+  if (!container) throw new ContainerError('Container not found', 404)
+  if (container.status !== 'locked') throw new ContainerError('Container must be locked before launching', 400)
+
+  const slug = slugify(container.name)
+
+  // Check slug uniqueness
+  const existing = await repo.findContainerBySlug(slug)
+  if (existing && existing.id !== id) {
+    throw new ContainerError(`Slug "${slug}" is already taken by another container`, 409)
+  }
+
+  const c = await repo.updateContainer(id, { status: 'launched', slug } as any)
+  if (!c) throw new ContainerError('Failed to launch container', 500)
+  return c
 }
 
 // ============================================================================

@@ -75,7 +75,13 @@ const componentMap: Record<string, any> = {
   ProgressBar: Progress,
 }
 
-export function Renderer(props: { node: UIComponent }) {
+// Form component types that accept disabled prop
+const formComponents = new Set([
+  'Input', 'Select', 'Checkbox', 'DatePicker', 'Textarea', 'RichText',
+  'Switch', 'Toggle', 'RadioGroup', 'FileUpload',
+])
+
+export function Renderer(props: { node: UIComponent; readOnly?: boolean }) {
   const Component = () => componentMap[props.node.type]
 
   return (
@@ -83,11 +89,16 @@ export function Renderer(props: { node: UIComponent }) {
       <ErrorBoundary fallback={(err: Error) => <div class="text-red-500 text-sm border border-red-300 p-2 rounded">Render error: {err.message}</div>}>
         {(() => {
           const C = Component()!
-          const nodeProps = props.node.props
+          const nodeProps = { ...props.node.props } as Record<string, any>
+
+          // Thread readOnly as disabled to form components
+          if (props.readOnly && formComponents.has(props.node.type)) {
+            nodeProps.disabled = true
+          }
 
           // Tabs: convert tabs[].children JSON nodes into JSX children panels
-          if (props.node.type === 'Tabs' && (nodeProps as any).tabs) {
-            const tabs = (nodeProps as any).tabs as { label: string; value?: string; children?: UIComponent[] }[]
+          if (props.node.type === 'Tabs' && nodeProps.tabs) {
+            const tabs = nodeProps.tabs as { label: string; value?: string; children?: UIComponent[] }[]
             return (
               <C tabs={tabs.map(t => ({ label: t.label, value: t.value }))}>
                 <For each={tabs}>
@@ -95,7 +106,7 @@ export function Renderer(props: { node: UIComponent }) {
                     <div>
                       <Show when={tab.children}>
                         <For each={tab.children!}>
-                          {(child: UIComponent) => <Renderer node={child} />}
+                          {(child: UIComponent) => <Renderer node={child} readOnly={props.readOnly} />}
                         </For>
                       </Show>
                     </div>
@@ -109,7 +120,7 @@ export function Renderer(props: { node: UIComponent }) {
             <C {...nodeProps}>
               <Show when={'children' in props.node && (props.node as any).children}>
                 <For each={(props.node as any).children}>
-                  {(child: UIComponent) => <Renderer node={child} />}
+                  {(child: UIComponent) => <Renderer node={child} readOnly={props.readOnly} />}
                 </For>
               </Show>
             </C>

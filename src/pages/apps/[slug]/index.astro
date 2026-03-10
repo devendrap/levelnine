@@ -1,0 +1,170 @@
+---
+import AppLayout from '../../../layouts/AppLayout.astro'
+import { loadAppContext } from '../../../lib/apps/helpers'
+import * as entityService from '../../../../server/modules/entities/service'
+
+const ctx = await loadAppContext(Astro)
+if (ctx instanceof Response) return ctx
+const { container, entityTypes, user } = ctx
+
+// Gather stats per entity type
+const stats = await Promise.all(
+  entityTypes.map(async (et) => {
+    const result = await entityService.listEntities({
+      type: et.name,
+      container_id: container.id,
+      pageSize: 1,
+    })
+    return { name: et.name, description: et.description, total: result.total }
+  })
+)
+
+// Recent entities across all types
+const recent = await entityService.listEntities({
+  container_id: container.id,
+  pageSize: 10,
+})
+---
+
+<AppLayout
+  container={container}
+  entityTypes={entityTypes}
+  userName={user.email}
+  userRole={user.role}
+>
+  <div class="max-w-6xl mx-auto px-8 py-8">
+    <!-- Welcome -->
+    <div class="mb-8">
+      <h1 class="text-xl font-bold" style="color:var(--ui-text)">{container.name}</h1>
+      {container.description && (
+        <p class="text-sm mt-1" style="color:var(--ui-text-muted)">{container.description}</p>
+      )}
+    </div>
+
+    <!-- Stats grid -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
+      {stats.map((s) => {
+        const label = s.name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+        return (
+          <a
+            href={`/apps/${container.slug}/${s.name}`}
+            class="rounded-xl p-5 transition-all hover:opacity-90"
+            style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
+          >
+            <div class="text-2xl font-bold" style="color:var(--ui-primary)">
+              {s.total}
+            </div>
+            <div class="text-xs font-medium mt-1 truncate" style="color:var(--ui-text)">
+              {label}
+            </div>
+            {s.description && (
+              <div class="text-[11px] mt-0.5 truncate" style="color:var(--ui-text-muted)">
+                {s.description}
+              </div>
+            )}
+          </a>
+        )
+      })}
+    </div>
+
+    <!-- Quick actions -->
+    <div class="mb-10">
+      <h2 class="text-sm font-semibold mb-3" style="color:var(--ui-text)">Quick Actions</h2>
+      <div class="flex flex-wrap gap-2">
+        {entityTypes.slice(0, 8).map((et) => {
+          const label = et.name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          return (
+            <a
+              href={`/apps/${container.slug}/${et.name}/new`}
+              class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:opacity-80"
+              style="background-color:rgba(212,164,74,0.08);color:var(--ui-primary);border:1px solid rgba(212,164,74,0.15)"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              New {label}
+            </a>
+          )
+        })}
+      </div>
+    </div>
+
+    <!-- Recent activity -->
+    <div>
+      <h2 class="text-sm font-semibold mb-3" style="color:var(--ui-text)">Recent Activity</h2>
+      {recent.data.length === 0 ? (
+        <div
+          class="rounded-xl px-6 py-10 text-center"
+          style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
+        >
+          <p class="text-sm" style="color:var(--ui-text-muted)">
+            No entities yet. Use the quick actions above to create your first record.
+          </p>
+        </div>
+      ) : (
+        <div
+          class="rounded-xl overflow-hidden"
+          style="border:1px solid var(--ui-border)"
+        >
+          <table class="w-full">
+            <thead>
+              <tr style="background-color:var(--ui-bg-subtle)">
+                <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Name</th>
+                <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Type</th>
+                <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Status</th>
+                <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.data.map((entity) => {
+                const et = entityTypes.find(e => e.id === entity.entity_type_id)
+                const typeName = et?.name ?? 'unknown'
+                return (
+                  <tr class="transition-colors" style="border-top:1px solid var(--ui-border)">
+                    <td class="px-5 py-3">
+                      <a
+                        href={`/apps/${container.slug}/${typeName}/${entity.id}`}
+                        class="text-sm font-medium hover:opacity-80 transition-opacity"
+                        style="color:var(--ui-text)"
+                      >
+                        {entity.name}
+                      </a>
+                    </td>
+                    <td class="px-5 py-3">
+                      <span class="text-xs" style="color:var(--ui-text-muted)">
+                        {typeName.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td class="px-5 py-3">
+                      <span
+                        class="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                        style={`background-color:${
+                          entity.status === 'approved' ? 'var(--ui-success-bg)' :
+                          entity.status === 'review' ? 'var(--ui-warning-bg)' :
+                          entity.status === 'archived' ? 'var(--ui-error-bg)' :
+                          'rgba(240,237,232,0.06)'
+                        };color:${
+                          entity.status === 'approved' ? 'var(--ui-success)' :
+                          entity.status === 'review' ? 'var(--ui-warning)' :
+                          entity.status === 'archived' ? 'var(--ui-error)' :
+                          'var(--ui-text-muted)'
+                        }`}
+                      >
+                        {entity.status}
+                      </span>
+                    </td>
+                    <td class="px-5 py-3">
+                      <span class="text-xs" style="color:var(--ui-text-placeholder)">
+                        {new Date(entity.updated_at).toLocaleDateString()}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+</AppLayout>

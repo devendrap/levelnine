@@ -1,0 +1,83 @@
+---
+interface Props {
+  appName: string
+  slug: string
+  userName: string
+  userRole: string
+  breadcrumbs?: Array<{ label: string; href?: string }>
+}
+
+const { appName, slug, userName, userRole, breadcrumbs = [] } = Astro.props
+---
+
+<header
+  class="shrink-0 flex items-center justify-between px-6 h-14"
+  style="border-bottom:1px solid var(--ui-border);background-color:var(--ui-bg-subtle)"
+>
+  <!-- Left: breadcrumbs -->
+  <div class="flex items-center gap-2 min-w-0">
+    <a
+      href="/dashboard"
+      class="text-xs hover:opacity-80 transition-opacity"
+      style="color:var(--ui-text-muted)"
+      title="Back to dashboard"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+    </a>
+    <span style="color:var(--ui-border)">/</span>
+    <a
+      href={`/apps/${slug}`}
+      class="text-sm font-semibold truncate hover:opacity-80 transition-opacity"
+      style="color:var(--ui-primary)"
+    >
+      {appName}
+    </a>
+    {breadcrumbs.map((crumb) => (
+      <>
+        <span style="color:var(--ui-border)" class="text-xs">/</span>
+        {crumb.href ? (
+          <a
+            href={crumb.href}
+            class="text-xs truncate hover:opacity-80 transition-opacity"
+            style="color:var(--ui-text-muted)"
+          >
+            {crumb.label}
+          </a>
+        ) : (
+          <span class="text-xs truncate" style="color:var(--ui-text)">
+            {crumb.label}
+          </span>
+        )}
+      </>
+    ))}
+  </div>
+
+  <!-- Right: user -->
+  <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2">
+      <div
+        class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold"
+        style="background-color:rgba(212,164,74,0.12);color:var(--ui-primary)"
+      >
+        {userName.charAt(0).toUpperCase()}
+      </div>
+      <span class="text-xs" style="color:var(--ui-text-muted)">{userName}</span>
+      <span
+        class="text-[10px] px-1.5 py-0.5 rounded"
+        style="background-color:rgba(212,164,74,0.08);color:var(--ui-primary)"
+      >
+        {userRole}
+      </span>
+    </div>
+    <button
+      data-app-logout={slug}
+      class="text-[11px] hover:opacity-80 transition-opacity cursor-pointer"
+      style="color:var(--ui-text-muted);background:none;border:none"
+    >
+      Sign out
+    </button>
+  </div>
+</header>

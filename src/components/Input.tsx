@@ -2,7 +2,7 @@ import { Show, createSignal } from 'solid-js'
 import { useStore } from '@nanostores/solid'
 import { $formData } from '../stores/ui'
 
-export function Input(props: { label?: string; placeholder?: string; type?: string; required?: boolean; bind?: string }) {
+export function Input(props: { label?: string; placeholder?: string; type?: string; required?: boolean; bind?: string; disabled?: boolean }) {
   const formData = useStore($formData)
   const [focused, setFocused] = createSignal(false)
 
@@ -26,9 +26,10 @@ export function Input(props: { label?: string; placeholder?: string; type?: stri
           placeholder={props.placeholder}
           required={props.required}
           value={props.bind ? (formData()[props.bind] ?? '') : ''}
-          onInput={(e) => props.bind && $formData.setKey(props.bind, e.currentTarget.value)}
+          onInput={(e) => props.bind && !props.disabled && $formData.setKey(props.bind, e.currentTarget.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
+          disabled={props.disabled}
           class="w-full px-3 py-2.5 text-sm border-none outline-none"
           style={{
             "background-color": "transparent",

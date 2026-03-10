@@ -1,0 +1,52 @@
+---
+import Base from './Base.astro'
+import AppHeader from '../components/apps/AppHeader.astro'
+import AppSidebar from '../components/apps/AppSidebar.astro'
+import type { Container, EntityType } from '../../server/core/types/index'
+import '../index.css'
+
+interface Props {
+  container: Container
+  entityTypes: EntityType[]
+  userName: string
+  userRole: string
+  activeType?: string
+  breadcrumbs?: Array<{ label: string; href?: string }>
+}
+
+const { container, entityTypes, userName, userRole, activeType, breadcrumbs } = Astro.props
+const pageTitle = activeType
+  ? `${activeType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} — ${container.name}`
+  : container.name
+---
+
+<Base title={`ai-ui — ${pageTitle}`}>
+  <div class="dark flex h-screen" style="background-color:var(--ui-bg);font-family:var(--ui-font)">
+    <AppSidebar
+      container={container}
+      entityTypes={entityTypes}
+      activeType={activeType}
+    />
+    <div class="flex-1 flex flex-col min-w-0">
+      <AppHeader
+        appName={container.name}
+        slug={container.slug!}
+        userName={userName}
+        userRole={userRole}
+        breadcrumbs={breadcrumbs}
+      />
+      <main class="flex-1 overflow-y-auto">
+        <slot />
+      </main>
+    </div>
+  </div>
+
+  <script is:inline define:vars={{ slug: container.slug }}>
+    document.querySelector('[data-app-logout]')?.addEventListener('click', async () => {
+      // Log out from both app and platform tokens
+      await fetch(`/api/v1/apps/${slug}/auth/logout`, { method: 'POST' })
+      await fetch('/api/v1/auth/logout', { method: 'POST' })
+      window.location.href = `/apps/${slug}/login`
+    })
+  </script>
+</Base>

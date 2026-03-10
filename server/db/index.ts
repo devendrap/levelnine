@@ -1,5 +1,15 @@
 import pg from 'pg'
 
+// Validate required env vars in production
+if (process.env.NODE_ENV === 'production') {
+  const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'JWT_SECRET']
+  const missing = required.filter(k => !process.env[k])
+  if (missing.length > 0) {
+    console.error(`[db] Missing required env vars: ${missing.join(', ')}`)
+    process.exit(1)
+  }
+}
+
 const pool = new pg.Pool({
   host: process.env.DB_HOST ?? 'localhost',
   port: Number(process.env.DB_PORT ?? 5433),

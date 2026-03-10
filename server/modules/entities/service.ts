@@ -5,8 +5,8 @@ import type { Entity, EntityType, PaginatedResult } from '../../core/types/index
 // Entity Types
 // ============================================================================
 
-export async function listEntityTypes(activeOnly = true): Promise<EntityType[]> {
-  return repo.findAllEntityTypes(activeOnly)
+export async function listEntityTypes(activeOnly = true, containerId?: string): Promise<EntityType[]> {
+  return repo.findAllEntityTypes(activeOnly, containerId)
 }
 
 export async function getEntityType(id: string): Promise<EntityType> {
@@ -56,6 +56,7 @@ export async function getEntity(id: string): Promise<Entity & { entity_type?: En
 
 export async function listEntities(filters: {
   type?: string
+  container_id?: string
   parent?: string
   status?: string
   period?: string
@@ -64,6 +65,7 @@ export async function listEntities(filters: {
 }): Promise<PaginatedResult<Entity>> {
   return repo.findEntitiesPaginated({
     entity_type_name: filters.type,
+    container_id: filters.container_id,
     parent_entity_id: filters.parent,
     status: filters.status,
     period: filters.period,
@@ -75,6 +77,7 @@ export async function listEntities(filters: {
 export async function createEntity(data: {
   entity_type_name?: string
   entity_type_id?: string
+  container_id?: string
   name: string
   content?: Record<string, any>
   metadata?: Record<string, any>
@@ -105,6 +108,7 @@ export async function createEntity(data: {
 
   return repo.insertEntity({
     entity_type_id: typeId,
+    container_id: data.container_id,
     name: data.name,
     content: data.content,
     metadata: data.metadata,

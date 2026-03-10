@@ -5,11 +5,16 @@ import type { Entity, EntityType, PaginatedResult } from '../../core/types/index
 // Entity Types
 // ============================================================================
 
-export async function findAllEntityTypes(activeOnly = true): Promise<EntityType[]> {
-  const sql = activeOnly
-    ? 'SELECT * FROM entity_types WHERE is_active = true ORDER BY name'
-    : 'SELECT * FROM entity_types ORDER BY name'
-  const result = await query<EntityType>(sql)
+export async function findAllEntityTypes(activeOnly = true, containerId?: string): Promise<EntityType[]> {
+  const wheres: string[] = []
+  const params: any[] = []
+  let idx = 1
+
+  if (activeOnly) wheres.push('is_active = true')
+  if (containerId) { wheres.push(`container_id = $${idx++}`); params.push(containerId) }
+
+  const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : ''
+  const result = await query<EntityType>(`SELECT * FROM entity_types ${whereClause} ORDER BY name`, params)
   return result.rows
 }
 
@@ -18,7 +23,11 @@ export async function findEntityTypeById(id: string): Promise<EntityType | null>
   return result.rows[0] ?? null
 }
 
-export async function findEntityTypeByName(name: string): Promise<EntityType | null> {
+export async function findEntityTypeByName(name: string, containerId?: string): Promise<EntityType | null> {
+  if (containerId) {
+    const result = await query<EntityType>('SELECT * FROM entity_types WHERE name = $1 AND container_id = $2', [name, containerId])
+    return result.rows[0] ?? null
+  }
   const result = await query<EntityType>('SELECT * FROM entity_types WHERE name = $1', [name])
   return result.rows[0] ?? null
 }
@@ -72,6 +81,7 @@ export async function findEntityById(id: string): Promise<Entity | null> {
 export async function findEntitiesPaginated(filters: {
   entity_type_id?: string
   entity_type_name?: string
+  container_id?: string
   parent_entity_id?: string
   status?: string
   period?: string
@@ -93,6 +103,10 @@ export async function findEntitiesPaginated(filters: {
   if (filters.entity_type_name) {
     wheres.push(`et.name = $${idx++}`)
     params.push(filters.entity_type_name)
+  }
+  if (filters.container_id) {
+    wheres.push(`e.container_id = $${idx++}`)
+    params.push(filters.container_id)
   }
   if (filters.parent_entity_id) {
     wheres.push(`e.parent_entity_id = $${idx++}`)
@@ -135,6 +149,7 @@ export async function findEntitiesPaginated(filters: {
 
 export async function insertEntity(data: {
   entity_type_id: string
+  container_id?: string
   name: string
   content?: Record<string, any>
   metadata?: Record<string, any>
@@ -146,11 +161,12 @@ export async function insertEntity(data: {
   created_by_user_id?: string
 }): Promise<Entity> {
   const result = await query<Entity>(
-    `INSERT INTO entities (entity_type_id, name, content, metadata, parent_entity_id, period, status, s3_key, original_filename, created_by_user_id, last_modified_by_user_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+    `INSERT INTO entities (entity_type_id, container_id, name, content, metadata, parent_entity_id, period, status, s3_key, original_filename, created_by_user_id, last_modified_by_user_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
      RETURNING *`,
     [
       data.entity_type_id,
+      data.container_id ?? null,
       data.name,
       JSON.stringify(data.content ?? {}),
       JSON.stringify(data.metadata ?? {}),

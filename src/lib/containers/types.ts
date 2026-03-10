@@ -1,8 +1,9 @@
 export interface Container {
   id: string
   name: string
+  slug: string | null
   description: string | null
-  status: 'draft' | 'review' | 'locked'
+  status: 'draft' | 'review' | 'locked' | 'launched'
   manifest: ContainerManifest
   created_at: string
   updated_at: string

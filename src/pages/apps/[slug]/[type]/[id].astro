@@ -1,0 +1,57 @@
+---
+import AppLayout from '../../../../layouts/AppLayout.astro'
+import AppEntityFormIsland from '../../../../islands/AppEntityFormIsland.tsx'
+import { loadAppContext } from '../../../../lib/apps/helpers'
+import * as entityService from '../../../../../server/modules/entities/service'
+
+const ctx = await loadAppContext(Astro)
+if (ctx instanceof Response) return ctx
+const { container, entityTypes, user } = ctx
+
+const typeName = Astro.params.type!
+const entityId = Astro.params.id!
+const mode = Astro.url.searchParams.get('mode')
+const readOnly = mode === 'view'
+
+const entityType = entityTypes.find(et => et.name === typeName)
+if (!entityType || !entityType.schema) return Astro.redirect(`/apps/${container.slug}/${typeName}`)
+
+let entity: any
+try {
+  entity = await entityService.getEntity(entityId)
+  // Verify entity belongs to this container
+  if (entity.container_id && entity.container_id !== container.id) {
+    return Astro.redirect(`/apps/${container.slug}/${typeName}`)
+  }
+} catch {
+  return Astro.redirect(`/apps/${container.slug}/${typeName}`)
+}
+
+const label = typeName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+---
+
+<AppLayout
+  container={container}
+  entityTypes={entityTypes}
+  userName={user.email}
+  userRole={user.role}
+  activeType={typeName}
+  breadcrumbs={[
+    { label, href: `/apps/${container.slug}/${typeName}` },
+    { label: entity.name },
+  ]}
+>
+  <AppEntityFormIsland
+    client:only="solid-js"
+    containerId={container.id}
+    slug={container.slug!}
+    typeName={typeName}
+    entityTypeId={entityType.id}
+    schema={entityType.schema}
+    entityId={entity.id}
+    entityName={entity.name}
+    entityContent={entity.content}
+    entityStatus={entity.status}
+    readOnly={readOnly}
+  />
+</AppLayout>

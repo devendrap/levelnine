@@ -1,0 +1,23 @@
+---
+import Base from '../../../layouts/Base.astro'
+import AppLoginIsland from '../../../islands/AppLoginIsland.tsx'
+import * as containerService from '../../../../server/modules/containers/service'
+import '../../../index.css'
+
+const { slug } = Astro.params
+
+let appName = ''
+try {
+  const container = await containerService.getContainerBySlug(slug!)
+  if (container.status !== 'launched') return Astro.redirect('/login')
+  appName = container.name
+} catch {
+  return Astro.redirect('/login')
+}
+---
+
+<Base title={`${appName} — Sign In`}>
+  <div class="dark" transition:animate="none">
+    <AppLoginIsland client:only="solid-js" slug={slug!} appName={appName} />
+  </div>
+</Base>
