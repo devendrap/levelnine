@@ -1,0 +1,79 @@
+---
+import Base from '../../layouts/Base.astro'
+import Sidebar from '../../components/containers/Sidebar.astro'
+import ContainerHeader from '../../components/containers/ContainerHeader.astro'
+import ManifestTab from '../../components/containers/ManifestTab.astro'
+import ChatPanel from '../../components/containers/ChatPanel.tsx'
+import { CM_STYLES } from '../../lib/containers/styles'
+import { authenticate } from '../../../server/middleware/auth'
+import * as containerService from '../../../server/modules/containers/service'
+import type { Container, Message } from '../../lib/containers/types'
+import '../../index.css'
+
+const { id } = Astro.params
+const tab = (Astro.url.searchParams.get('tab') ?? 'chat') as 'chat' | 'manifest'
+const enhanceName = Astro.url.searchParams.get('enhance')
+const action = Astro.url.searchParams.get('action')
+
+let containers: any[] = []
+let container: Container
+let messages: Message[] = []
+
+try {
+  authenticate(Astro.request)
+  containers = await containerService.listContainers()
+  container = await containerService.getContainer(id!) as any
+  messages = await containerService.getMessages(id!) as any
+} catch (e: any) {
+  if (e.message === 'No token provided' || e.message === 'Invalid token') {
+    return Astro.redirect('/login')
+  }
+  return Astro.redirect('/containers')
+}
+
+// Build pre-filled input or auto-send message from URL params
+let initialInput = ''
+let autoSend = ''
+
+if (enhanceName) {
+  initialInput = `Generate the full detailed JSON schema for "${enhanceName}". Include every field a practitioner would need, use appropriate ai-ui components (Tabs for sections, Select for dropdowns, DatePicker for dates, FileUpload for documents, RichText for notes). Make it production-ready.`
+}
+
+if (action === 'generate-schemas') {
+  const entityTypes = container.manifest?.entity_types ?? []
+  const missing = entityTypes.filter(et => !et.schema)
+  if (missing.length > 0) {
+    const batch = missing.slice(0, 3)
+    const names = batch.map(e => e.name)
+    autoSend = `Generate full JSON schemas for these ${batch.length} entity types: ${names.join(', ')}
+
+For each, use appropriate ai-ui components (Tabs, Select, DatePicker, FileUpload, RichText, Table, Checkbox). Be thorough but concise.
+
+IMPORTANT: In the json:entity_types summary block at the end, include ONLY these ${batch.length} entity types with their schemas. Do NOT include the other ${entityTypes.length - batch.length} entity types.`
+  }
+}
+---
+
+<Base title={`ai-ui — ${container.name}`}>
+  <style is:inline set:html={CM_STYLES} />
+  <div class="dark flex h-screen" style="background-color:var(--ui-bg);font-family:var(--ui-font)">
+    <Sidebar containers={containers} selectedId={id} />
+
+    <main class="flex-1 flex flex-col min-w-0">
+      <ContainerHeader container={container} activeTab={tab} />
+
+      {tab === 'chat' ? (
+        <ChatPanel
+          client:only="solid-js"
+          containerId={id!}
+          containerStatus={container.status}
+          initialMessages={messages}
+          initialInput={initialInput || undefined}
+          autoSend={autoSend || undefined}
+        />
+      ) : (
+        <ManifestTab container={container} />
+      )}
+    </main>
+  </div>
+</Base>

@@ -1,0 +1,44 @@
+---
+import Base from '../../layouts/Base.astro'
+import Sidebar from '../../components/containers/Sidebar.astro'
+import SidebarCreateForm from '../../components/containers/SidebarCreateForm.tsx'
+import { CM_STYLES } from '../../lib/containers/styles'
+import { authenticate } from '../../../server/middleware/auth'
+import * as containerService from '../../../server/modules/containers/service'
+import '../../index.css'
+
+let containers: any[] = []
+try {
+  authenticate(Astro.request)
+  containers = await containerService.listContainers()
+} catch {
+  return Astro.redirect('/login')
+}
+---
+
+<Base title="ai-ui — Container Manager">
+  <style is:inline set:html={CM_STYLES} />
+  <div class="dark flex h-screen" style="background-color:var(--ui-bg);font-family:var(--ui-font)">
+    <Sidebar containers={containers} />
+
+    <!-- Empty state -->
+    <main class="flex-1 flex items-center justify-center">
+      <div class="text-center max-w-md">
+        <div
+          class="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center"
+          style="background-color:rgba(212,164,74,0.08)"
+        >
+          <span style="font-size:28px;color:var(--ui-primary)">&#9881;</span>
+        </div>
+        <h1 class="text-xl font-semibold mb-2" style="color:var(--ui-text)">
+          Container Manager
+        </h1>
+        <p class="text-sm leading-relaxed mb-8" style="color:var(--ui-text-muted)">
+          Define industry-specific applications through AI-guided conversation.
+          Each container becomes a complete workflow with forms, navigation, and business rules.
+        </p>
+        <SidebarCreateForm client:only="solid-js" />
+      </div>
+    </main>
+  </div>
+</Base>

@@ -1,0 +1,110 @@
+---
+import type { Container, EntityTypeDef } from '../../lib/containers/types'
+import { SchemaPreviewPanel } from '../SchemaPreviewPanel'
+import EntityTypeActions from './EntityTypeActions.tsx'
+import ManifestActions from './ManifestActions.tsx'
+
+interface Props {
+  container: Container
+}
+
+const { container } = Astro.props
+const entityTypes = container.manifest?.entity_types ?? []
+const totalCount = entityTypes.length
+const reviewedCount = entityTypes.filter(e => e.reviewed).length
+const allReviewed = totalCount > 0 && reviewedCount === totalCount
+const missingSchemas = entityTypes.filter(e => !e.schema).length
+---
+
+<div class="flex-1 overflow-y-auto">
+  <div class="max-w-4xl mx-auto px-6 py-6">
+    <!-- Manifest header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="text-base font-semibold" style="color:var(--ui-text)">Entity Types</h2>
+        <p class="text-xs mt-0.5" style="color:var(--ui-text-muted)">
+          {totalCount} defined, {reviewedCount} reviewed
+        </p>
+      </div>
+      <ManifestActions
+        client:only="solid-js"
+        containerId={container.id}
+        containerStatus={container.status}
+        allReviewed={allReviewed}
+        missingSchemas={missingSchemas}
+        totalCount={totalCount}
+      />
+    </div>
+
+    <!-- Progress bar -->
+    {totalCount > 0 && (
+      <div class="mb-6">
+        <div class="h-1.5 rounded-full w-full" style="background-color:rgba(240,237,232,0.06)">
+          <div
+            class="h-1.5 rounded-full transition-all"
+            style={`width:${(reviewedCount / totalCount) * 100}%;background-color:${allReviewed ? '#22C55E' : 'var(--ui-primary)'}`}
+          />
+        </div>
+      </div>
+    )}
+
+    <!-- Entity type list -->
+    {totalCount === 0 ? (
+      <div class="text-center py-12">
+        <p class="text-sm mb-2" style="color:var(--ui-text-muted)">No entity types saved yet.</p>
+        <p class="text-xs" style="color:var(--ui-text-muted)">
+          Chat with the AI to define entity types, then click "Save All to Manifest".
+        </p>
+      </div>
+    ) : (
+      <div class="space-y-2">
+        {entityTypes.map((et) => (
+          <div
+            class="rounded-xl border px-5 py-4 transition-all"
+            style={`border-color:${et.reviewed ? 'rgba(34,197,94,0.15)' : 'var(--ui-border)'};background-color:${et.reviewed ? 'rgba(34,197,94,0.03)' : 'rgba(240,237,232,0.02)'}`}
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2.5">
+                  <span class="text-sm font-semibold" style="color:var(--ui-text)">{et.name}</span>
+                  {et.schema && (
+                    <span class="text-[10px] px-1.5 py-0.5 rounded font-medium" style="background-color:rgba(212,164,74,0.1);color:var(--ui-primary)">
+                      has schema
+                    </span>
+                  )}
+                  {et.reviewed && (
+                    <span class="text-[10px] px-1.5 py-0.5 rounded font-medium" style="background-color:rgba(34,197,94,0.1);color:#22C55E">
+                      reviewed
+                    </span>
+                  )}
+                </div>
+                <p class="text-xs mt-1 leading-relaxed" style="color:var(--ui-text-muted)">{et.description}</p>
+              </div>
+
+              {container.status !== 'locked' && (
+                <EntityTypeActions
+                  client:only="solid-js"
+                  containerId={container.id}
+                  entityName={et.name}
+                  reviewed={et.reviewed ?? false}
+                  hasSchema={!!et.schema}
+                />
+              )}
+            </div>
+
+            {et.schema && (
+              <div class="mt-3">
+                <SchemaPreviewPanel
+                  client:only="solid-js"
+                  name={et.name}
+                  schema={et.schema}
+                  showHeader={false}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+</div>

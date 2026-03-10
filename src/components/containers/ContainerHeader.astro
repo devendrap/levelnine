@@ -1,0 +1,77 @@
+---
+import type { Container } from '../../lib/containers/types'
+
+interface Props {
+  container: Container
+  activeTab: 'chat' | 'manifest'
+}
+
+const { container, activeTab } = Astro.props
+const entityTypes = container.manifest?.entity_types ?? []
+const totalCount = entityTypes.length
+const reviewedCount = entityTypes.filter(e => e.reviewed).length
+
+function statusBadge(status: string) {
+  const colors: Record<string, { bg: string; fg: string }> = {
+    draft: { bg: 'rgba(240,237,232,0.08)', fg: 'var(--ui-text-muted)' },
+    review: { bg: 'rgba(228,168,50,0.12)', fg: '#E4A832' },
+    locked: { bg: 'rgba(34,197,94,0.12)', fg: '#22C55E' },
+  }
+  const c = colors[status] ?? colors.draft
+  return `background-color:${c.bg};color:${c.fg}`
+}
+---
+
+<div
+  class="flex items-center justify-between px-6 py-3 border-b shrink-0"
+  style="border-color:var(--ui-border);background-color:rgba(11,15,26,0.4)"
+>
+  <div class="flex items-center gap-4">
+    <div>
+      <h1 class="text-base font-semibold" style="color:var(--ui-text)">{container.name}</h1>
+      <div class="flex items-center gap-3 mt-0.5">
+        <span class="text-[10px] uppercase font-semibold px-2 py-0.5 rounded" style={statusBadge(container.status)}>
+          {container.status}
+        </span>
+        {totalCount > 0 && (
+          <span class="text-[10px]" style="color:var(--ui-text-muted)">
+            {reviewedCount}/{totalCount} reviewed
+          </span>
+        )}
+      </div>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-2">
+    <!-- Tab switcher -->
+    <div class="flex rounded-lg p-0.5" style="background-color:rgba(240,237,232,0.04)">
+      <a
+        href={`/containers/${container.id}`}
+        class="px-3 py-1.5 rounded-md text-xs font-medium transition-all no-underline"
+        style={`background-color:${activeTab === 'chat' ? 'rgba(212,164,74,0.12)' : 'transparent'};color:${activeTab === 'chat' ? 'var(--ui-primary)' : 'var(--ui-text-muted)'}`}
+      >
+        Chat
+      </a>
+      <a
+        href={`/containers/${container.id}?tab=manifest`}
+        class="px-3 py-1.5 rounded-md text-xs font-medium transition-all no-underline"
+        style={`background-color:${activeTab === 'manifest' ? 'rgba(212,164,74,0.12)' : 'transparent'};color:${activeTab === 'manifest' ? 'var(--ui-primary)' : 'var(--ui-text-muted)'}`}
+      >
+        Manifest
+        {totalCount > 0 && <span class="ml-1.5 text-[10px] tabular-nums">({totalCount})</span>}
+      </a>
+    </div>
+
+    <!-- Provider select (form-based, no JS needed) -->
+    <select
+      id="provider-select"
+      class="text-xs px-2.5 py-1.5 rounded-lg border outline-none cursor-pointer"
+      style="background-color:rgba(240,237,232,0.04);border-color:var(--ui-border);color:var(--ui-text-muted)"
+    >
+      <option value="ollama">Ollama</option>
+      <option value="gemini">Gemini</option>
+      <option value="openai">OpenAI</option>
+      <option value="xai">xAI</option>
+    </select>
+  </div>
+</div>

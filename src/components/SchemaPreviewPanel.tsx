@@ -96,7 +96,6 @@ export function SchemaPreviewPanel(props: {
                 border: "1.5px solid rgba(212,164,74,0.35)",
                 "box-shadow": "0 0 12px rgba(212,164,74,0.08), inset 0 0 0 1px rgba(212,164,74,0.05)",
                 "background-color": "rgba(240,237,232,0.02)",
-                "pointer-events": "none",
                 opacity: "0.85",
                 padding: "16px",
               }}

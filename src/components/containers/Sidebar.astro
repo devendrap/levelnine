@@ -1,0 +1,85 @@
+---
+import type { Container } from '../../lib/containers/types'
+import SidebarCreateForm from './SidebarCreateForm.tsx'
+
+interface Props {
+  containers: Container[]
+  selectedId?: string
+}
+
+const { containers, selectedId } = Astro.props
+
+function statusBadge(status: string) {
+  const colors: Record<string, { bg: string; fg: string }> = {
+    draft: { bg: 'rgba(240,237,232,0.08)', fg: 'var(--ui-text-muted)' },
+    review: { bg: 'rgba(228,168,50,0.12)', fg: '#E4A832' },
+    locked: { bg: 'rgba(34,197,94,0.12)', fg: '#22C55E' },
+  }
+  const c = colors[status] ?? colors.draft
+  return `background-color:${c.bg};color:${c.fg}`
+}
+---
+
+<aside
+  class="w-80 flex flex-col border-r shrink-0"
+  style="background-color:rgba(11,15,26,0.6);border-color:var(--ui-border)"
+>
+  <!-- Header -->
+  <div class="flex items-center justify-between px-5 py-4 border-b" style="border-color:var(--ui-border)">
+    <div class="flex items-center gap-3">
+      <a
+        href="/dashboard"
+        class="w-8 h-8 rounded-lg flex items-center justify-center hover:opacity-80 transition-opacity"
+        style="background-color:rgba(240,237,232,0.06)"
+        title="Back to Dashboard"
+      >
+        <span style="color:var(--ui-text-muted);font-size:14px">&larr;</span>
+      </a>
+      <div>
+        <h2 class="text-sm font-semibold tracking-tight" style="color:var(--ui-text)">Containers</h2>
+        <p class="text-[10px]" style="color:var(--ui-text-muted)">Industry definitions</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container list -->
+  <div class="flex-1 overflow-y-auto px-3 py-2">
+    {containers.map((c) => (
+      <a
+        href={`/containers/${c.id}`}
+        class="block w-full text-left px-3 py-3 rounded-lg mb-1 transition-all no-underline"
+        style={`background-color:${selectedId === c.id ? 'rgba(212,164,74,0.08)' : 'transparent'};border-left:2px solid ${selectedId === c.id ? 'var(--ui-primary)' : 'transparent'}`}
+      >
+        <div class="flex items-center justify-between mb-0.5">
+          <span
+            class="text-sm font-medium truncate"
+            style={`color:${selectedId === c.id ? 'var(--ui-text)' : 'var(--ui-text-muted)'}`}
+          >
+            {c.name}
+          </span>
+          <span class="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded" style={statusBadge(c.status)}>
+            {c.status}
+          </span>
+        </div>
+        {c.manifest?.entity_types?.length ? (
+          <div class="flex items-center gap-1.5 mt-1">
+            <div class="h-1 rounded-full flex-1" style="background-color:rgba(240,237,232,0.06)">
+              <div
+                class="h-1 rounded-full transition-all"
+                style={`background-color:var(--ui-primary);width:${(c.manifest.entity_types!.filter(e => e.reviewed).length / c.manifest.entity_types!.length) * 100}%`}
+              />
+            </div>
+            <span class="text-[10px] tabular-nums" style="color:var(--ui-text-muted)">
+              {c.manifest.entity_types!.filter(e => e.reviewed).length}/{c.manifest.entity_types!.length}
+            </span>
+          </div>
+        ) : null}
+      </a>
+    ))}
+  </div>
+
+  <!-- Footer -->
+  <div class="px-3 py-3 border-t space-y-2" style="border-color:var(--ui-border)">
+    <SidebarCreateForm client:only="solid-js" />
+  </div>
+</aside>
