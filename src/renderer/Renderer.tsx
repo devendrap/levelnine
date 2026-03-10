@@ -26,6 +26,12 @@ import { RadioGroup } from '../components/RadioGroup'
 import { Skeleton } from '../components/Skeleton'
 import { Pagination } from '../components/Pagination'
 import { Link } from '../components/Link'
+import { Chart } from '../components/Chart'
+import { FileUpload } from '../components/FileUpload'
+import { Image } from '../components/Image'
+import { Popover } from '../components/Popover'
+import { ContextMenu } from '../components/ContextMenu'
+import { Carousel } from '../components/Carousel'
 import type { UIComponent } from './types'
 
 const componentMap: Record<string, any> = {
@@ -33,6 +39,7 @@ const componentMap: Record<string, any> = {
   Table, Tabs, Progress, Avatar, Dialog,
   Checkbox, Select, Textarea, DatePicker, Alert, Accordion,
   Switch, Tooltip, RadioGroup, Skeleton, Pagination, Link,
+  Chart, FileUpload, Image, Popover, ContextMenu, Carousel,
 }
 
 export function Renderer(props: { node: UIComponent }) {

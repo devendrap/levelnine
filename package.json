@@ -12,6 +12,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@nanostores/solid": "^1.1.1",
+    "chart.js": "^4.5.1",
     "nanostores": "^1.1.1",
     "openai": "^6.27.0",
     "solid-js": "^1.9.10",

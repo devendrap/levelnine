@@ -243,6 +243,76 @@ const LinkSchema = z.object({
   }),
 }).describe('Styled hyperlink')
 
+const ChartSchema = z.object({
+  type: z.literal('Chart'),
+  props: z.object({
+    type: z.enum(['bar', 'line', 'doughnut', 'pie']).default('bar').describe('Chart type'),
+    labels: z.array(z.string()).describe('X-axis labels or slice labels'),
+    datasets: z.array(z.object({
+      label: z.string(),
+      data: z.array(z.number()),
+      color: z.string().optional(),
+    })).describe('Data series — array of {label: string, data: number[], color?: string}'),
+    height: z.string().optional().describe('Chart container height (e.g. "300px")'),
+  }),
+}).describe('Chart visualization (bar, line, doughnut, pie)')
+
+const FileUploadSchema = z.object({
+  type: z.literal('FileUpload'),
+  props: z.object({
+    label: z.string().optional().describe('Upload field label'),
+    accept: z.string().optional().describe('Accepted file types (e.g. ".pdf,.xlsx")'),
+    multiple: z.boolean().default(false).describe('Allow multiple file selection'),
+    maxSizeMB: z.number().default(10).describe('Max file size in MB'),
+  }),
+}).describe('Drag-and-drop file upload zone')
+
+const ImageSchema = z.object({
+  type: z.literal('Image'),
+  props: z.object({
+    src: z.string().describe('Image URL'),
+    alt: z.string().describe('Alt text for accessibility'),
+    width: z.string().optional().describe('Image width (e.g. "300px", "100%")'),
+    height: z.string().optional().describe('Image height'),
+    rounded: z.enum(['none', 'sm', 'md', 'lg', 'xl', 'full']).default('md').describe('Border radius'),
+    caption: z.string().optional().describe('Caption text below image'),
+  }),
+}).describe('Image with loading state and error fallback')
+
+const PopoverSchema = z.object({
+  type: z.literal('Popover'),
+  props: z.object({
+    trigger: z.string().describe('Button text that opens the popover'),
+    title: z.string().optional().describe('Popover header title'),
+    content: z.string().describe('Popover body text'),
+  }),
+  children: z.array(UINode).optional(),
+}).describe('Click-triggered popover panel')
+
+const ContextMenuSchema = z.object({
+  type: z.literal('ContextMenu'),
+  props: z.object({
+    items: z.array(z.object({
+      label: z.string(),
+      action: z.string().optional(),
+      variant: z.string().optional(),
+    })).describe('Menu items — array of {label: string, action?: string, variant?: "danger"}, use label "---" for separator'),
+  }),
+  children: z.array(UINode).optional(),
+}).describe('Right-click context menu')
+
+const CarouselSchema = z.object({
+  type: z.literal('Carousel'),
+  props: z.object({
+    slides: z.array(z.object({
+      content: z.string(),
+      caption: z.string().optional(),
+    })).describe('Slides — array of {content: string, caption?: string}'),
+    autoplay: z.boolean().default(true).describe('Auto-advance slides'),
+    interval: z.number().default(5).describe('Seconds between auto-advance'),
+  }),
+}).describe('Content carousel with auto-play and navigation')
+
 export const ComponentSchema = z.discriminatedUnion('type', [
   HeadingSchema, TextSchema, ButtonSchema, InputSchema,
   BadgeSchema, ListSchema, SeparatorSchema,
@@ -250,6 +320,7 @@ export const ComponentSchema = z.discriminatedUnion('type', [
   TableSchema, TabsSchema, ProgressSchema, AvatarSchema, DialogSchema,
   CheckboxSchema, SelectSchema, TextareaSchema, DatePickerSchema, AlertSchema, AccordionSchema,
   SwitchSchema, TooltipSchema, RadioGroupSchema, SkeletonSchema, PaginationSchema, LinkSchema,
+  ChartSchema, FileUploadSchema, ImageSchema, PopoverSchema, ContextMenuSchema, CarouselSchema,
 ])
 
 export { UINode }
