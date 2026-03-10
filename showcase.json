@@ -1,0 +1,386 @@
+{
+  "type": "Stack",
+  "props": { "gap": "8" },
+  "children": [
+    {
+      "type": "Stack",
+      "props": { "gap": "2" },
+      "children": [
+        { "type": "Heading", "props": { "level": 1, "content": "ai-ui Component Catalog" } },
+        { "type": "Text", "props": { "content": "All 33 components in one page. Interactive — click, type, toggle everything.", "variant": "caption" } }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Typography & Content" } },
+    {
+      "type": "Stack",
+      "props": { "gap": "3" },
+      "children": [
+        { "type": "Heading", "props": { "level": 3, "content": "Heading Level 3 — Section Title" } },
+        { "type": "Heading", "props": { "level": 4, "content": "Heading Level 4 — Subsection" } },
+        { "type": "Text", "props": { "content": "Body text renders at 14px with comfortable line height for reading dense audit content.", "variant": "body" } },
+        { "type": "Text", "props": { "content": "Caption text is smaller, used for metadata, timestamps, and supplementary info.", "variant": "caption" } },
+        { "type": "Text", "props": { "content": "const auditResult = validateSpec(schema, data)", "variant": "code" } }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Badges" } },
+    {
+      "type": "Row",
+      "props": { "gap": "3", "align": "center" },
+      "children": [
+        { "type": "Badge", "props": { "label": "Default", "variant": "default" } },
+        { "type": "Badge", "props": { "label": "Approved", "variant": "success" } },
+        { "type": "Badge", "props": { "label": "Pending Review", "variant": "warning" } },
+        { "type": "Badge", "props": { "label": "Critical Finding", "variant": "error" } }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Buttons" } },
+    {
+      "type": "Row",
+      "props": { "gap": "3", "align": "center" },
+      "children": [
+        { "type": "Button", "props": { "label": "Primary", "variant": "default", "size": "md" } },
+        { "type": "Button", "props": { "label": "Outline", "variant": "outline", "size": "md" } },
+        { "type": "Button", "props": { "label": "Ghost", "variant": "ghost", "size": "md" } },
+        { "type": "Button", "props": { "label": "Small", "variant": "default", "size": "sm" } },
+        { "type": "Button", "props": { "label": "Large", "variant": "default", "size": "lg" } },
+        { "type": "Button", "props": { "label": "Toggle Theme", "variant": "outline", "size": "sm", "action": "toggleTheme" } }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Form Controls" } },
+    {
+      "type": "Card",
+      "props": { "title": "Engagement Details" },
+      "children": [
+        {
+          "type": "Stack",
+          "props": { "gap": "4" },
+          "children": [
+            {
+              "type": "Row",
+              "props": { "gap": "4" },
+              "children": [
+                { "type": "Input", "props": { "label": "Client Name", "placeholder": "Enter client name", "type": "text", "required": true, "bind": "clientName" } },
+                { "type": "Input", "props": { "label": "Engagement ID", "placeholder": "ENG-2026-001", "type": "text", "bind": "engId" } }
+              ]
+            },
+            {
+              "type": "Row",
+              "props": { "gap": "4" },
+              "children": [
+                { "type": "Select", "props": { "label": "Audit Type", "options": ["Financial Statement Audit", "ICFR Audit", "Integrated Audit", "Review Engagement", "Compilation"], "placeholder": "Choose audit type...", "bind": "auditType" } },
+                { "type": "Select", "props": { "label": "Risk Level", "options": ["Low", "Medium", "High", "Critical"], "bind": "riskLevel" } }
+              ]
+            },
+            {
+              "type": "Row",
+              "props": { "gap": "4" },
+              "children": [
+                { "type": "DatePicker", "props": { "label": "Period Start", "bind": "periodStart", "required": true } },
+                { "type": "DatePicker", "props": { "label": "Period End", "bind": "periodEnd", "required": true } }
+              ]
+            },
+            { "type": "Textarea", "props": { "label": "Engagement Notes", "placeholder": "Key observations, scope limitations, special considerations...", "rows": 4, "bind": "notes" } },
+            {
+              "type": "Row",
+              "props": { "gap": "6", "align": "center" },
+              "children": [
+                { "type": "Checkbox", "props": { "label": "Public Company (SOX)", "bind": "isSox" } },
+                { "type": "Checkbox", "props": { "label": "Going Concern Risk", "bind": "goingConcern" } },
+                { "type": "Checkbox", "props": { "label": "First-Year Engagement", "bind": "firstYear" } }
+              ]
+            },
+            {
+              "type": "Row",
+              "props": { "gap": "6", "align": "center" },
+              "children": [
+                { "type": "Switch", "props": { "label": "Auto-Save Enabled", "bind": "autoSave" } },
+                { "type": "Switch", "props": { "label": "SOX Compliance Mode", "bind": "soxMode" } }
+              ]
+            },
+            { "type": "RadioGroup", "props": { "label": "Opinion Type", "options": ["Unmodified", "Qualified", "Adverse", "Disclaimer"], "bind": "opinionType", "direction": "horizontal" } },
+            { "type": "RadioGroup", "props": { "label": "Materiality Basis", "options": ["Revenue", "Total Assets", "Net Income", "Equity"], "bind": "materialityBasis" } }
+          ]
+        }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Alerts" } },
+    {
+      "type": "Stack",
+      "props": { "gap": "3" },
+      "children": [
+        { "type": "Alert", "props": { "title": "Information", "message": "This engagement has been assigned to your team. Review the scope and planning documents before proceeding.", "variant": "info" } },
+        { "type": "Alert", "props": { "title": "Phase Complete", "message": "Planning phase completed successfully. All risk assessments have been documented.", "variant": "success" } },
+        { "type": "Alert", "props": { "title": "Attention Required", "message": "3 work papers are pending partner review. Deadline: March 15, 2026.", "variant": "warning" } },
+        { "type": "Alert", "props": { "title": "Material Weakness", "message": "A material weakness in revenue recognition controls has been identified. Immediate escalation required.", "variant": "error" } }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Data Display" } },
+    {
+      "type": "Table",
+      "props": {
+        "columns": ["Work Paper", "Assigned To", "Status", "Risk", "Due Date"],
+        "rows": [
+          ["WP-100 Cash & Equivalents", "Sarah Chen", "Complete", "Low", "Feb 28, 2026"],
+          ["WP-200 Revenue Recognition", "James Okafor", "In Progress", "High", "Mar 10, 2026"],
+          ["WP-300 Fixed Assets", "Maria Santos", "Not Started", "Medium", "Mar 15, 2026"],
+          ["WP-400 Accounts Receivable", "Sarah Chen", "Review", "High", "Mar 12, 2026"],
+          ["WP-500 Inventory", "James Okafor", "In Progress", "Critical", "Mar 20, 2026"]
+        ]
+      }
+    },
+
+    { "type": "List", "props": { "items": ["Review general ledger for unusual transactions", "Verify bank reconciliations against confirmations", "Test depreciation calculations for accuracy", "Confirm accounts receivable balances with third parties", "Evaluate going concern indicators"], "ordered": true } },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Charts" } },
+    {
+      "type": "Row",
+      "props": { "gap": "4" },
+      "children": [
+        {
+          "type": "Chart",
+          "props": {
+            "type": "bar",
+            "labels": ["Q1", "Q2", "Q3", "Q4"],
+            "datasets": [
+              { "label": "Findings", "data": [12, 8, 15, 6] },
+              { "label": "Resolved", "data": [10, 7, 11, 5] }
+            ],
+            "height": "280px"
+          }
+        },
+        {
+          "type": "Chart",
+          "props": {
+            "type": "doughnut",
+            "labels": ["High", "Medium", "Low"],
+            "datasets": [
+              { "label": "Risk Distribution", "data": [15, 35, 50] }
+            ],
+            "height": "280px"
+          }
+        }
+      ]
+    },
+    {
+      "type": "Row",
+      "props": { "gap": "4" },
+      "children": [
+        {
+          "type": "Chart",
+          "props": {
+            "type": "line",
+            "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+            "datasets": [
+              { "label": "Audit Hours", "data": [120, 145, 130, 160, 155, 170] }
+            ],
+            "height": "280px"
+          }
+        },
+        {
+          "type": "Chart",
+          "props": {
+            "type": "pie",
+            "labels": ["Planning", "Fieldwork", "Review", "Reporting"],
+            "datasets": [
+              { "label": "Time Allocation", "data": [20, 45, 25, 10] }
+            ],
+            "height": "280px"
+          }
+        }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Progress & Status" } },
+    {
+      "type": "Stack",
+      "props": { "gap": "3" },
+      "children": [
+        { "type": "Progress", "props": { "value": 75, "label": "Overall Engagement Completion" } },
+        { "type": "Progress", "props": { "value": 100, "label": "Planning Phase" } },
+        { "type": "Progress", "props": { "value": 45, "label": "Fieldwork Phase" } },
+        { "type": "Progress", "props": { "value": 0, "label": "Completion Phase" } }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Avatars & Team" } },
+    {
+      "type": "Row",
+      "props": { "gap": "4", "align": "center" },
+      "children": [
+        { "type": "Avatar", "props": { "name": "Sarah Chen", "size": "lg" } },
+        { "type": "Avatar", "props": { "name": "James Okafor", "size": "md" } },
+        { "type": "Avatar", "props": { "name": "Maria Santos", "size": "md" } },
+        { "type": "Avatar", "props": { "name": "David Kim", "size": "sm" } }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Tabs" } },
+    {
+      "type": "Tabs",
+      "props": {
+        "tabs": [
+          { "label": "Overview", "value": "overview" },
+          { "label": "Findings", "value": "findings" },
+          { "label": "Work Papers", "value": "workpapers" }
+        ]
+      },
+      "children": [
+        { "type": "Text", "props": { "content": "Engagement overview: Client Acme Corp, fiscal year ending Dec 31, 2025. Integrated audit covering financial statements and ICFR.", "variant": "body" } },
+        {
+          "type": "Stack",
+          "props": { "gap": "2" },
+          "children": [
+            { "type": "Badge", "props": { "label": "3 Open Findings", "variant": "warning" } },
+            { "type": "Text", "props": { "content": "F-001: Revenue cutoff errors identified in Q4 transactions exceeding performance materiality.", "variant": "body" } }
+          ]
+        },
+        { "type": "Text", "props": { "content": "24 work papers total: 18 complete, 4 in progress, 2 not started.", "variant": "body" } }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Accordion" } },
+    {
+      "type": "Accordion",
+      "props": {
+        "items": [
+          { "title": "Phase 1: Planning & Risk Assessment (PCAOB AS 2101, AS 2110)", "content": "Understand the entity and its environment, assess risks of material misstatement at the financial statement and assertion levels, determine materiality, and design the audit approach. This includes fraud risk evaluation under AS 2401." },
+          { "title": "Phase 2: Internal Control Testing (PCAOB AS 2201)", "content": "Identify and test key controls for each significant process cycle. Evaluate design and operating effectiveness. Document walkthrough procedures and assess any control deficiencies for severity classification." },
+          { "title": "Phase 3: Substantive Testing", "content": "Execute substantive analytical procedures and tests of details for each significant account. This includes confirmation procedures, recalculation tests, cutoff testing, and evaluation of accounting estimates." },
+          { "title": "Phase 4: Completion & Reporting", "content": "Perform final analytical procedures, evaluate going concern, obtain management representations, complete disclosure checklist, and draft the auditor's report. Includes engagement quality review." }
+        ],
+        "multiple": true
+      }
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Tooltips, Links & Popovers" } },
+    {
+      "type": "Row",
+      "props": { "gap": "6", "align": "center" },
+      "children": [
+        { "type": "Tooltip", "props": { "label": "Performance Materiality", "content": "Typically set at 50-75% of overall materiality to reduce aggregation risk" } },
+        { "type": "Tooltip", "props": { "label": "SAD Threshold", "content": "Summary of Audit Differences — clearly trivial threshold, usually 3-5% of materiality" } },
+        { "type": "Link", "props": { "label": "PCAOB Standards", "href": "https://pcaobus.org/oversight/standards", "external": true } },
+        { "type": "Link", "props": { "label": "Back to Dashboard", "href": "/dashboard", "external": false } },
+        { "type": "Popover", "props": { "trigger": "Methodology", "title": "Audit Methodology", "content": "This engagement follows ISA 315 (Revised 2019) risk-based approach with emphasis on substantive analytical procedures and a combined testing strategy for ICFR." } }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "File Upload" } },
+    { "type": "FileUpload", "props": { "label": "Upload Audit Evidence", "accept": ".pdf,.xlsx,.docx,.csv", "multiple": true, "maxSizeMB": 25 } },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Image" } },
+    { "type": "Image", "props": { "src": "https://placehold.co/800x300/6A0DAD/white?text=ai-ui+Component+Catalog", "alt": "ai-ui banner", "width": "100%", "height": "200px", "rounded": "lg", "caption": "ai-ui — 33 production-grade components driven by JSON specs" } },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Context Menu" } },
+    {
+      "type": "ContextMenu",
+      "props": {
+        "items": [
+          { "label": "View Details" },
+          { "label": "Edit Work Paper" },
+          { "label": "Add Comment" },
+          { "label": "---" },
+          { "label": "Export as PDF" },
+          { "label": "Export as Excel" },
+          { "label": "---" },
+          { "label": "Delete", "variant": "danger" }
+        ]
+      }
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Carousel" } },
+    {
+      "type": "Carousel",
+      "props": {
+        "slides": [
+          { "content": "Phase 1: Planning — All risk assessments finalized, materiality thresholds set at $450K overall, $315K performance.", "caption": "Completed Feb 15, 2026" },
+          { "content": "Phase 2: Fieldwork — 18 of 24 substantive procedures complete. Revenue and inventory testing in progress.", "caption": "Target: Mar 15, 2026" },
+          { "content": "Phase 3: Completion — Pending partner review of 3 open findings before report issuance.", "caption": "Target: Mar 31, 2026" }
+        ],
+        "autoplay": true,
+        "interval": 6
+      }
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Skeleton Loading States" } },
+    {
+      "type": "Row",
+      "props": { "gap": "4" },
+      "children": [
+        {
+          "type": "Stack",
+          "props": { "gap": "3" },
+          "children": [
+            { "type": "Skeleton", "props": { "variant": "avatar", "height": "48px" } },
+            { "type": "Skeleton", "props": { "variant": "text", "lines": 3 } }
+          ]
+        },
+        { "type": "Skeleton", "props": { "variant": "card" } }
+      ]
+    },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Pagination" } },
+    { "type": "Pagination", "props": { "totalPages": 24, "bind": "currentPage" } },
+
+    { "type": "Separator", "props": { "orientation": "horizontal" } },
+
+    { "type": "Heading", "props": { "level": 2, "content": "Dialog" } },
+    {
+      "type": "Dialog",
+      "props": { "title": "Confirm Submission", "open": false },
+      "children": [
+        { "type": "Text", "props": { "content": "Are you sure you want to submit this engagement for partner review? This action cannot be undone.", "variant": "body" } },
+        {
+          "type": "Row",
+          "props": { "gap": "3", "justify": "end" },
+          "children": [
+            { "type": "Button", "props": { "label": "Cancel", "variant": "ghost", "size": "sm" } },
+            { "type": "Button", "props": { "label": "Submit for Review", "variant": "default", "size": "sm" } }
+          ]
+        }
+      ]
+    }
+  ]
+}
