@@ -1,0 +1,11 @@
+---
+import Base from '../../layouts/Base.astro'
+import EntityEditorIsland from '../../islands/EntityEditorIsland.tsx'
+import '../../index.css'
+const { id } = Astro.params
+---
+<Base title="ai-ui — Entity Editor">
+  <div class="dark" transition:animate="none">
+    <EntityEditorIsland id={id!} client:only="solid-js" />
+  </div>
+</Base>

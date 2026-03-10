@@ -32,7 +32,7 @@ export function Carousel(props: { slides: { content: string; caption?: string }[
       aria-label="Carousel"
     >
       {/* Slides */}
-      <div class="relative overflow-hidden" style={{ "min-height": '180px' }}>
+      <div class="relative overflow-hidden" style={{ "min-height": '280px' }}>
         <For each={props.slides}>
           {(slide, i) => (
             <div
@@ -46,9 +46,27 @@ export function Carousel(props: { slides: { content: string; caption?: string }[
               aria-roledescription="slide"
               aria-label={`Slide ${i() + 1} of ${total()}`}
             >
-              <p class="text-base text-center leading-relaxed" style={{ color: 'var(--ui-text)' }}>{slide.content}</p>
-              <Show when={slide.caption}>
-                <p class="text-xs mt-3" style={{ color: 'var(--ui-text-muted)' }}>{slide.caption}</p>
+              <Show
+                when={slide.content.match(/^https?:\/\/.*\.(jpg|jpeg|png|gif|webp|svg|avif)/i) || slide.content.match(/^https?:\/\/(images\.|.*unsplash\.com)/)}
+                fallback={
+                  <>
+                    <p class="text-base text-center leading-relaxed" style={{ color: 'var(--ui-text)' }}>{slide.content}</p>
+                    <Show when={slide.caption}>
+                      <p class="text-xs mt-3" style={{ color: 'var(--ui-text-muted)' }}>{slide.caption}</p>
+                    </Show>
+                  </>
+                }
+              >
+                <img
+                  src={slide.content}
+                  alt={slide.caption ?? ''}
+                  class="w-full h-full object-cover absolute inset-0"
+                />
+                <Show when={slide.caption}>
+                  <div class="absolute bottom-0 left-0 right-0 p-3 text-xs text-center" style={{ color: '#F0EDE8', "background": 'linear-gradient(transparent, rgba(11,15,26,0.8))' }}>
+                    {slide.caption}
+                  </div>
+                </Show>
               </Show>
             </div>
           )}

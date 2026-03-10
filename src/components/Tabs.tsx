@@ -1,14 +1,28 @@
-import { createSignal, For, Show } from 'solid-js'
+import { createSignal, For, Show, children as resolveChildren } from 'solid-js'
 import type { JSX } from 'solid-js'
 
-export function Tabs(props: { tabs: { label: string; value: string }[]; children?: JSX.Element }) {
-  const [active, setActive] = createSignal(props.tabs[0]?.value ?? '')
-  const children = () => Array.isArray(props.children) ? props.children : props.children ? [props.children] : []
+export function Tabs(props: {
+  tabs: { label: string; value?: string }[]
+  children?: JSX.Element
+}) {
+  const resolved = () =>
+    props.tabs.map((t) => ({
+      label: t.label,
+      value: t.value ?? t.label,
+    }))
+
+  const [active, setActive] = createSignal(resolved()[0]?.value ?? '')
+
+  const panels = resolveChildren(() => props.children)
+  const panelArray = () => {
+    const c = panels()
+    return Array.isArray(c) ? c : c ? [c] : []
+  }
 
   return (
     <div>
       <div class="flex gap-0.5 border-b" style={{ "border-color": "var(--ui-border)" }}>
-        <For each={props.tabs}>
+        <For each={resolved()}>
           {(tab) => {
             const isActive = () => active() === tab.value
             return (
@@ -29,9 +43,9 @@ export function Tabs(props: { tabs: { label: string; value: string }[]; children
         </For>
       </div>
       <div class="pt-4">
-        <For each={props.tabs}>
+        <For each={resolved()}>
           {(tab, i) => (
-            <Show when={active() === tab.value}>{children()[i()]}</Show>
+            <Show when={active() === tab.value}>{panelArray()[i()]}</Show>
           )}
         </For>
       </div>

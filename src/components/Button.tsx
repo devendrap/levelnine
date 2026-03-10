@@ -1,7 +1,7 @@
 import { runAction } from '../stores/ui'
 
 const variants: Record<string, Record<string, string>> = {
-  default: { "background-color": "var(--ui-primary)", color: "#ffffff" },
+  default: { "background-color": "var(--ui-primary)", color: "#0B0F1A" },
   outline: { "background-color": "transparent", color: "var(--ui-text)", "border": "1px solid var(--ui-border)" },
   ghost: { "background-color": "transparent", color: "var(--ui-text-secondary)" },
 }

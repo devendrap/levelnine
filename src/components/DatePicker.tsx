@@ -209,7 +209,7 @@ export function DatePicker(props: { label?: string; bind?: string; required?: bo
                       color: disabled()
                         ? 'var(--ui-text-placeholder)'
                         : selected()
-                          ? 'white'
+                          ? '#0B0F1A'
                           : cell.current
                             ? 'var(--ui-text)'
                             : 'var(--ui-text-placeholder)',

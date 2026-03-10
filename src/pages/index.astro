@@ -1,0 +1,8 @@
+---
+import Base from '../layouts/Base.astro'
+import EditorIsland from '../islands/EditorIsland.tsx'
+import '../index.css'
+---
+<Base title="ai-ui — Editor">
+  <EditorIsland client:only="solid-js" />
+</Base>

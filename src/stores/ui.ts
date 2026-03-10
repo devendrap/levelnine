@@ -1,6 +1,6 @@
 import { atom, map } from 'nanostores'
 
-export const $theme = atom<'light' | 'dark'>('light')
+export const $theme = atom<'light' | 'dark'>('dark')
 export const $formData = map<Record<string, string>>({})
 
 export const builtinActions: Record<string, () => void> = {

@@ -18,7 +18,8 @@ const fontSizes: Record<number, string> = {
   6: 'var(--ui-font-size-body)',
 }
 
-export function Heading(props: { level: number; content: string }) {
+export function Heading(props: { level: number; content?: string; text?: string }) {
+  const resolved = () => props.content ?? props.text ?? ''
   return (
     <Dynamic
       component={`h${props.level}` as any}
@@ -29,7 +30,7 @@ export function Heading(props: { level: number; content: string }) {
         "line-height": "1.3",
       }}
     >
-      {props.content}
+      {resolved()}
     </Dynamic>
   )
 }

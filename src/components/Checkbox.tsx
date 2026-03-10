@@ -51,7 +51,7 @@ export function Checkbox(props: { label: string; bind?: string; defaultChecked?:
         >
           <path
             d="M2.5 6L5 8.5L9.5 3.5"
-            stroke="white"
+            stroke="#0B0F1A"
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"

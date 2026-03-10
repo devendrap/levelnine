@@ -13,10 +13,10 @@ const variantColors: Record<string, string> = {
   code: 'var(--ui-text)',
 }
 
-export function Text(props: { content: string; variant?: string }) {
+export function Text(props: { content?: string; text?: string; variant?: string }) {
   const formData = useStore($formData)
   const resolved = () =>
-    props.content.replace(/\$(\w+)/g, (_, key) => formData()[key] ?? '')
+    (props.content ?? props.text ?? '').replace(/\$(\w+)/g, (_, key) => formData()[key] ?? '')
   const v = () => props.variant ?? 'body'
   return (
     <p

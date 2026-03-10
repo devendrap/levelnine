@@ -1,0 +1,8 @@
+---
+import Base from '../layouts/Base.astro'
+import ContainerManagerIsland from '../islands/ContainerManagerIsland.tsx'
+import '../index.css'
+---
+<Base title="ai-ui — Container Manager">
+  <ContainerManagerIsland client:only="solid-js" transition:animate="none" />
+</Base>

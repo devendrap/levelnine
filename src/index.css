@@ -1,51 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 @import "tailwindcss";
 
 /* =============================================================================
    ai-ui Design Tokens
-   Aligned with AiBi.frontend design system
-   Font: Inter · Primary: Purple 500 (#6A0DAD) · Radius: 0.5rem
+   Aligned with ConstructNova design system
+   Font: DM Sans · Primary: Gold (#D4A44A) · Accent: Blue (#3B8FE8)
+   Dark: Navy #0B0F1A · Light text: Cream #F0EDE8
    ============================================================================= */
 
 @layer base {
   :root {
     /* ── Typography ── */
-    --ui-font: "Inter", system-ui, -apple-system, sans-serif;
+    --ui-font: "DM Sans", system-ui, -apple-system, sans-serif;
+    --ui-font-mono: "Space Mono", ui-monospace, monospace;
     --ui-font-size-h1: 32px;
     --ui-font-size-h2: 20px;
     --ui-font-size-h3: 18px;
     --ui-font-size-h4: 16px;
-    --ui-font-size-body: 14px;
+    --ui-font-size-body: 16px;
     --ui-font-size-caption: 12px;
 
     /* ── Radius ── */
-    --ui-radius-sm: 4px;
-    --ui-radius-md: 6px;
-    --ui-radius-lg: 8px;
-    --ui-radius-xl: 12px;
+    --ui-radius-sm: 6px;
+    --ui-radius-md: 8px;
+    --ui-radius-lg: 10px;
+    --ui-radius-xl: 14px;
 
     /* ── Surfaces ── */
     --ui-bg: #ffffff;
-    --ui-bg-subtle: #f9fafb;
-    --ui-bg-muted: #f3f4f6;
+    --ui-bg-subtle: #f8f7f5;
+    --ui-bg-muted: #ececf0;
     --ui-card-bg: #ffffff;
 
     /* ── Borders ── */
-    --ui-border: #e5e7eb;
+    --ui-border: rgba(0, 0, 0, 0.1);
 
     /* ── Text ── */
-    --ui-text: #1a1a1a;
-    --ui-text-secondary: #4f4f4f;
-    --ui-text-muted: #696969;
-    --ui-text-placeholder: #a0a0a0;
+    --ui-text: #0B0F1A;
+    --ui-text-secondary: #3a3d4a;
+    --ui-text-muted: #717182;
+    --ui-text-placeholder: #a0a0a8;
 
     /* ── Focus ── */
-    --ui-ring: #6A0DAD;
+    --ui-ring: #D4A44A;
 
-    /* ── Primary (Purple 500) ── */
-    --ui-primary: #6A0DAD;
-    --ui-primary-hover: #4B0082;
-    --ui-primary-light: #E6E6FA;
-    --ui-primary-subtle: #f5f0ff;
+    /* ── Primary (Gold) ── */
+    --ui-primary: #D4A44A;
+    --ui-primary-hover: #c0932e;
+    --ui-primary-light: #faf3e3;
+    --ui-primary-subtle: #fdf8ef;
+
+    /* ── Accent (Blue) ── */
+    --ui-accent: #3B8FE8;
+    --ui-accent-hover: #2a7ed4;
 
     /* ── Semantic: Success ── */
     --ui-success: #10B981;
@@ -53,23 +60,30 @@
     --ui-success-border: #bbf7d0;
 
     /* ── Semantic: Warning ── */
-    --ui-warning: #ff7f00;
+    --ui-warning: #f59e0b;
     --ui-warning-bg: #fffbeb;
     --ui-warning-border: #fde68a;
 
     /* ── Semantic: Error / Destructive ── */
-    --ui-error: #D85151;
+    --ui-error: #d4183d;
     --ui-error-bg: #fef2f2;
     --ui-error-border: #fecaca;
 
     /* ── Semantic: Info ── */
-    --ui-info: #6FA6FF;
+    --ui-info: #3B8FE8;
     --ui-info-bg: #eff6ff;
     --ui-info-border: #bfdbfe;
 
     /* ── Shadows ── */
-    --ui-shadow: 0 1px 3px 0 rgba(0,0,0,.08), 0 1px 2px -1px rgba(0,0,0,.08);
+    --ui-shadow: 0 1px 3px 0 rgba(0,0,0,.06), 0 1px 2px -1px rgba(0,0,0,.06);
     --ui-shadow-lg: 0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.08);
+
+    /* ── Chart Colors ── */
+    --ui-chart-1: #D4A44A;
+    --ui-chart-2: #3B8FE8;
+    --ui-chart-3: #10B981;
+    --ui-chart-4: #f59e0b;
+    --ui-chart-5: #d4183d;
 
     /* ── Assertion Colors (audit domain) ── */
     --ui-assertion-eo: #46467F;
@@ -80,60 +94,71 @@
   }
 
   .dark {
-    /* ── Surfaces ── */
-    --ui-bg: #111827;
-    --ui-bg-subtle: #1f2937;
-    --ui-bg-muted: #374151;
-    --ui-card-bg: #1f2937;
+    /* ── Surfaces (ConstructNova navy) ── */
+    --ui-bg: #0B0F1A;
+    --ui-bg-subtle: #0F1320;
+    --ui-bg-muted: #1a1e2e;
+    --ui-card-bg: #0F1320;
 
     /* ── Borders ── */
-    --ui-border: #374151;
+    --ui-border: rgba(212, 164, 74, 0.15);
 
-    /* ── Text ── */
-    --ui-text: #f9fafb;
-    --ui-text-secondary: #e5e7eb;
-    --ui-text-muted: #9ca3af;
-    --ui-text-placeholder: #6b7280;
+    /* ── Text (ConstructNova cream) ── */
+    --ui-text: #F0EDE8;
+    --ui-text-secondary: #c8c4bc;
+    --ui-text-muted: #8a8690;
+    --ui-text-placeholder: #5a5660;
 
     /* ── Focus ── */
-    --ui-ring: #a855f7;
+    --ui-ring: #D4A44A;
 
-    /* ── Primary ── */
-    --ui-primary: #a855f7;
-    --ui-primary-hover: #9333ea;
-    --ui-primary-light: #3b1d6e;
-    --ui-primary-subtle: #1e1040;
+    /* ── Primary (Gold — same in dark) ── */
+    --ui-primary: #D4A44A;
+    --ui-primary-hover: #e0b45a;
+    --ui-primary-light: rgba(212, 164, 74, 0.1);
+    --ui-primary-subtle: rgba(212, 164, 74, 0.05);
+
+    /* ── Accent (Blue) ── */
+    --ui-accent: #3B8FE8;
+    --ui-accent-hover: #5aa3f0;
 
     /* ── Semantic: Success ── */
     --ui-success: #22c55e;
-    --ui-success-bg: #052e16;
-    --ui-success-border: #166534;
+    --ui-success-bg: rgba(34, 197, 94, 0.1);
+    --ui-success-border: rgba(34, 197, 94, 0.2);
 
     /* ── Semantic: Warning ── */
     --ui-warning: #f59e0b;
-    --ui-warning-bg: #451a03;
-    --ui-warning-border: #713f12;
+    --ui-warning-bg: rgba(245, 158, 11, 0.1);
+    --ui-warning-border: rgba(245, 158, 11, 0.2);
 
     /* ── Semantic: Error ── */
     --ui-error: #ef4444;
-    --ui-error-bg: #450a0a;
-    --ui-error-border: #7f1d1d;
+    --ui-error-bg: rgba(239, 68, 68, 0.1);
+    --ui-error-border: rgba(239, 68, 68, 0.2);
 
     /* ── Semantic: Info ── */
-    --ui-info: #3b82f6;
-    --ui-info-bg: #172554;
-    --ui-info-border: #1e3a5f;
+    --ui-info: #3B8FE8;
+    --ui-info-bg: rgba(59, 143, 232, 0.1);
+    --ui-info-border: rgba(59, 143, 232, 0.2);
 
     /* ── Shadows ── */
-    --ui-shadow: 0 1px 3px 0 rgba(0,0,0,.3), 0 1px 2px -1px rgba(0,0,0,.3);
-    --ui-shadow-lg: 0 10px 15px -3px rgba(0,0,0,.3), 0 4px 6px -4px rgba(0,0,0,.3);
+    --ui-shadow: 0 1px 3px 0 rgba(0,0,0,.4), 0 1px 2px -1px rgba(0,0,0,.4);
+    --ui-shadow-lg: 0 10px 15px -3px rgba(0,0,0,.4), 0 4px 6px -4px rgba(0,0,0,.4);
+
+    /* ── Chart Colors ── */
+    --ui-chart-1: #D4A44A;
+    --ui-chart-2: #3B8FE8;
+    --ui-chart-3: #22c55e;
+    --ui-chart-4: #f59e0b;
+    --ui-chart-5: #ef4444;
 
     /* ── Assertion Colors ── */
     --ui-assertion-eo: #7878bf;
     --ui-assertion-ro: #2a7a6a;
     --ui-assertion-pd: #98b0a0;
     --ui-assertion-c: #b8c060;
-    --ui-assertion-va: #d4b020;
+    --ui-assertion-va: #D4A44A;
   }
 }
 

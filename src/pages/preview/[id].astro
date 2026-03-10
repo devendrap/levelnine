@@ -1,0 +1,9 @@
+---
+import Base from '../../layouts/Base.astro'
+import PreviewIsland from '../../islands/PreviewIsland.tsx'
+import '../../index.css'
+const { id } = Astro.params
+---
+<Base title="ai-ui — Preview">
+  <PreviewIsland id={id!} client:only="solid-js" />
+</Base>
