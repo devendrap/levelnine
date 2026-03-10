@@ -17,17 +17,22 @@ export function PreviewRoute(props: { id: string }) {
   const theme = useStore($theme)
 
   return (
-    <div class={`min-h-screen p-8 transition-colors ${theme() === 'dark' ? 'dark' : ''}`} style={{ "background-color": "var(--ui-bg)" }}>
-      <Show when={spec.loading}>
-        <p class="text-sm" style={{ color: "var(--ui-text-muted)" }}>Loading preview...</p>
-      </Show>
-      <Show when={spec.error}>
-        <p class="text-red-500 text-sm">Failed to load preview</p>
-      </Show>
-      <Show when={spec()}>{(node) => <Renderer node={node()} />}</Show>
-      <Show when={!spec.loading && !spec() && !spec.error}>
-        <p class="text-red-500 text-sm">Preview not found</p>
-      </Show>
+    <div
+      class={`min-h-screen transition-colors ${theme() === 'dark' ? 'dark' : ''}`}
+      style={{ "background-color": "var(--ui-bg)", "font-family": "var(--ui-font)" }}
+    >
+      <div class="max-w-5xl mx-auto px-6 py-8">
+        <Show when={spec.loading}>
+          <p class="text-sm" style={{ color: "var(--ui-text-muted)" }}>Loading preview...</p>
+        </Show>
+        <Show when={spec.error}>
+          <p class="text-sm" style={{ color: "var(--ui-error)" }}>Failed to load preview</p>
+        </Show>
+        <Show when={spec()}>{(node) => <Renderer node={node()} />}</Show>
+        <Show when={!spec.loading && !spec() && !spec.error}>
+          <p class="text-sm" style={{ color: "var(--ui-error)" }}>Preview not found</p>
+        </Show>
+      </div>
     </div>
   )
 }
