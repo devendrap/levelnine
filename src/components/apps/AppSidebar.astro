@@ -1,5 +1,6 @@
 ---
 import type { Container, EntityType } from '../../../server/core/types/index'
+import { getAllUIConfigs } from '../../lib/apps/helpers'
 
 interface Props {
   container: Container
@@ -9,12 +10,27 @@ interface Props {
 
 const { container, entityTypes, activeType } = Astro.props
 const slug = container.slug!
-const navigation = container.manifest?.navigation ?? []
+let navigation = container.manifest?.navigation ?? []
 
 // Build a set of entity type names that exist in the DB
 const typeNames = new Set(entityTypes.map(et => et.name))
 
-// If no navigation defined, show all entity types flat
+// If no manifest navigation, try D10 ui_configs for navigation grouping
+if (navigation.length === 0) {
+  const uiConfigs = await getAllUIConfigs(container.id)
+  const configsWithNav = uiConfigs.filter(c => c.navigation)
+  if (configsWithNav.length > 0) {
+    const groups = new Map<string, { label: string; children: string[]; sortOrder: number }>()
+    const sorted = [...configsWithNav].sort((a, b) => (a.navigation?.sort_order ?? 99) - (b.navigation?.sort_order ?? 99))
+    for (const cfg of sorted) {
+      const group = cfg.navigation?.menu_group ?? 'Main'
+      if (!groups.has(group)) groups.set(group, { label: group, children: [], sortOrder: cfg.navigation?.sort_order ?? 99 })
+      groups.get(group)!.children.push(cfg.entity_type)
+    }
+    navigation = [...groups.values()].sort((a, b) => a.sortOrder - b.sortOrder)
+  }
+}
+
 const hasNav = navigation.length > 0
 ---
 

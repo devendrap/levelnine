@@ -1,6 +1,7 @@
 ---
 import AppLayout from '../../../../layouts/AppLayout.astro'
-import { loadAppContext } from '../../../../lib/apps/helpers'
+import MasterDetailViewIsland from '../../../../islands/MasterDetailViewIsland.tsx'
+import { loadAppContext, getUIConfig } from '../../../../lib/apps/helpers'
 import * as entityService from '../../../../../server/modules/entities/service'
 
 const ctx = await loadAppContext(Astro)
@@ -26,9 +27,26 @@ const result = await entityService.listEntities({
 const label = typeName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 const statuses = ['all', 'draft', 'active', 'review', 'approved', 'archived']
 
-// Extract display columns from key_fields in manifest or schema
+// D10 UI config — use grid_config columns if available, else fall back to key_fields
+const uiConfig = await getUIConfig(container.id, typeName)
 const manifestEt = (container.manifest?.entity_types ?? []).find(e => e.name === typeName)
-const keyFields: string[] = (manifestEt as any)?.key_fields ?? []
+
+type ColDef = { field: string; label: string; width?: string; sortable?: boolean }
+let columns: ColDef[] = []
+
+if (uiConfig?.grid_config?.columns?.length) {
+  columns = uiConfig.grid_config.columns
+} else {
+  // Fallback: key_fields from manifest
+  const keyFields: string[] = (manifestEt as any)?.key_fields ?? []
+  columns = keyFields.slice(0, 4).map(f => ({
+    field: f,
+    label: f.replace(/_/g, ' '),
+  }))
+}
+
+const viewType = uiConfig?.view_type ?? 'full_page'
+const isMasterDetail = viewType === 'master_detail' || viewType === 'grid_only'
 ---
 
 <AppLayout
@@ -39,158 +57,180 @@ const keyFields: string[] = (manifestEt as any)?.key_fields ?? []
   activeType={typeName}
   breadcrumbs={[{ label }]}
 >
-  <div class="max-w-6xl mx-auto px-8 py-8">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-lg font-bold" style="color:var(--ui-text)">{label}</h1>
-        {entityType.description && (
-          <p class="text-xs mt-0.5" style="color:var(--ui-text-muted)">{entityType.description}</p>
-        )}
-      </div>
-      <a
-        href={`/apps/${container.slug}/${typeName}/new`}
-        class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
-        style="background-color:var(--ui-primary);color:#0B0F1A"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        New {label}
-      </a>
+  {isMasterDetail ? (
+    <div class="h-[calc(100vh-56px)]">
+      <MasterDetailViewIsland
+        client:only="solid-js"
+        containerId={container.id}
+        slug={container.slug!}
+        typeName={typeName}
+        entityTypeId={entityType.id}
+        schema={entityType.schema}
+        columns={columns}
+        entities={result.data.map(e => ({
+          id: e.id, name: e.name, status: e.status,
+          ...(e.content as Record<string, any> ?? {}),
+        }))}
+        total={result.total}
+        splitRatio="40/60"
+        detailConfig={uiConfig?.detail_config ?? null}
+      />
     </div>
-
-    <!-- Status filters -->
-    <div class="flex items-center gap-1 mb-5">
-      {statuses.map((s) => {
-        const isActive = s === 'all' ? !status : status === s
-        const href = s === 'all'
-          ? `/apps/${container.slug}/${typeName}`
-          : `/apps/${container.slug}/${typeName}?status=${s}`
-        return (
-          <a
-            href={href}
-            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-            style={isActive
-              ? "background-color:rgba(212,164,74,0.12);color:var(--ui-primary)"
-              : "color:var(--ui-text-muted)"
-            }
-          >
-            {s.charAt(0).toUpperCase() + s.slice(1)}
-          </a>
-        )
-      })}
-      <span class="text-[11px] ml-2" style="color:var(--ui-text-placeholder)">
-        {result.total} record{result.total !== 1 ? 's' : ''}
-      </span>
-    </div>
-
-    <!-- Table -->
-    {result.data.length === 0 ? (
-      <div
-        class="rounded-xl px-6 py-16 text-center"
-        style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
-      >
-        <p class="text-sm mb-4" style="color:var(--ui-text-muted)">
-          {status ? `No ${status} records found.` : `No ${label.toLowerCase()} records yet.`}
-        </p>
+  ) : (
+    <!-- Full page list view -->
+    <div class="max-w-6xl mx-auto px-8 py-8">
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-lg font-bold" style="color:var(--ui-text)">{label}</h1>
+          {entityType.description && (
+            <p class="text-xs mt-0.5" style="color:var(--ui-text-muted)">{entityType.description}</p>
+          )}
+        </div>
         <a
           href={`/apps/${container.slug}/${typeName}/new`}
-          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
-          style="background-color:rgba(212,164,74,0.08);color:var(--ui-primary);border:1px solid rgba(212,164,74,0.15)"
+          class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
+          style="background-color:var(--ui-primary);color:#0B0F1A"
         >
-          Create your first {label.toLowerCase()}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          New {label}
         </a>
       </div>
-    ) : (
-      <div class="rounded-xl overflow-hidden" style="border:1px solid var(--ui-border)">
-        <table class="w-full">
-          <thead>
-            <tr style="background-color:var(--ui-bg-subtle)">
-              <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Name</th>
-              {keyFields.slice(0, 4).map((field) => (
-                <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">
-                  {field.replace(/_/g, ' ')}
-                </th>
-              ))}
-              <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Status</th>
-              <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.data.map((entity) => (
-              <tr class="transition-colors" style="border-top:1px solid var(--ui-border)">
-                <td class="px-5 py-3">
-                  <a
-                    href={`/apps/${container.slug}/${typeName}/${entity.id}`}
-                    class="text-sm font-medium hover:opacity-80 transition-opacity"
-                    style="color:var(--ui-text)"
-                  >
-                    {entity.name}
-                  </a>
-                </td>
-                {keyFields.slice(0, 4).map((field) => (
+
+      <!-- Status filters -->
+      <div class="flex items-center gap-1 mb-5">
+        {statuses.map((s) => {
+          const isActive = s === 'all' ? !status : status === s
+          const href = s === 'all'
+            ? `/apps/${container.slug}/${typeName}`
+            : `/apps/${container.slug}/${typeName}?status=${s}`
+          return (
+            <a
+              href={href}
+              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              style={isActive
+                ? "background-color:rgba(212,164,74,0.12);color:var(--ui-primary)"
+                : "color:var(--ui-text-muted)"
+              }
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </a>
+          )
+        })}
+        <span class="text-[11px] ml-2" style="color:var(--ui-text-placeholder)">
+          {result.total} record{result.total !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <!-- Table -->
+      {result.data.length === 0 ? (
+        <div
+          class="rounded-xl px-6 py-16 text-center"
+          style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
+        >
+          <p class="text-sm mb-4" style="color:var(--ui-text-muted)">
+            {status ? `No ${status} records found.` : `No ${label.toLowerCase()} records yet.`}
+          </p>
+          <a
+            href={`/apps/${container.slug}/${typeName}/new`}
+            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
+            style="background-color:rgba(212,164,74,0.08);color:var(--ui-primary);border:1px solid rgba(212,164,74,0.15)"
+          >
+            Create your first {label.toLowerCase()}
+          </a>
+        </div>
+      ) : (
+        <div class="rounded-xl overflow-hidden" style="border:1px solid var(--ui-border)">
+          <table class="w-full">
+            <thead>
+              <tr style="background-color:var(--ui-bg-subtle)">
+                <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Name</th>
+                {columns.map((col) => (
+                  <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">
+                    {col.label}
+                  </th>
+                ))}
+                <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Status</th>
+                <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.data.map((entity) => (
+                <tr class="transition-colors" style="border-top:1px solid var(--ui-border)">
                   <td class="px-5 py-3">
-                    <span class="text-xs truncate max-w-[200px] block" style="color:var(--ui-text-muted)">
-                      {(entity.content as any)?.[field] ?? '—'}
+                    <a
+                      href={`/apps/${container.slug}/${typeName}/${entity.id}`}
+                      class="text-sm font-medium hover:opacity-80 transition-opacity"
+                      style="color:var(--ui-text)"
+                    >
+                      {entity.name}
+                    </a>
+                  </td>
+                  {columns.map((col) => (
+                    <td class="px-5 py-3">
+                      <span class="text-xs truncate max-w-[200px] block" style="color:var(--ui-text-muted)">
+                        {(entity.content as any)?.[col.field] ?? '\u2014'}
+                      </span>
+                    </td>
+                  ))}
+                  <td class="px-5 py-3">
+                    <span
+                      class="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                      style={`background-color:${
+                        entity.status === 'approved' ? 'var(--ui-success-bg)' :
+                        entity.status === 'review' ? 'var(--ui-warning-bg)' :
+                        entity.status === 'archived' ? 'var(--ui-error-bg)' :
+                        'rgba(240,237,232,0.06)'
+                      };color:${
+                        entity.status === 'approved' ? 'var(--ui-success)' :
+                        entity.status === 'review' ? 'var(--ui-warning)' :
+                        entity.status === 'archived' ? 'var(--ui-error)' :
+                        'var(--ui-text-muted)'
+                      }`}
+                    >
+                      {entity.status}
                     </span>
                   </td>
-                ))}
-                <td class="px-5 py-3">
-                  <span
-                    class="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                    style={`background-color:${
-                      entity.status === 'approved' ? 'var(--ui-success-bg)' :
-                      entity.status === 'review' ? 'var(--ui-warning-bg)' :
-                      entity.status === 'archived' ? 'var(--ui-error-bg)' :
-                      'rgba(240,237,232,0.06)'
-                    };color:${
-                      entity.status === 'approved' ? 'var(--ui-success)' :
-                      entity.status === 'review' ? 'var(--ui-warning)' :
-                      entity.status === 'archived' ? 'var(--ui-error)' :
-                      'var(--ui-text-muted)'
-                    }`}
-                  >
-                    {entity.status}
-                  </span>
-                </td>
-                <td class="px-5 py-3">
-                  <span class="text-xs" style="color:var(--ui-text-placeholder)">
-                    {new Date(entity.updated_at).toLocaleDateString()}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )}
+                  <td class="px-5 py-3">
+                    <span class="text-xs" style="color:var(--ui-text-placeholder)">
+                      {new Date(entity.updated_at).toLocaleDateString()}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-    <!-- Pagination -->
-    {result.totalPages > 1 && (
-      <div class="flex items-center justify-center gap-2 mt-6">
-        {page > 1 && (
-          <a
-            href={`/apps/${container.slug}/${typeName}?page=${page - 1}${status ? `&status=${status}` : ''}`}
-            class="px-3 py-1.5 rounded-lg text-xs font-medium"
-            style="color:var(--ui-text-muted);background-color:rgba(240,237,232,0.04)"
-          >
-            Previous
-          </a>
-        )}
-        <span class="text-xs" style="color:var(--ui-text-placeholder)">
-          Page {page} of {result.totalPages}
-        </span>
-        {page < result.totalPages && (
-          <a
-            href={`/apps/${container.slug}/${typeName}?page=${page + 1}${status ? `&status=${status}` : ''}`}
-            class="px-3 py-1.5 rounded-lg text-xs font-medium"
-            style="color:var(--ui-text-muted);background-color:rgba(240,237,232,0.04)"
-          >
-            Next
-          </a>
-        )}
-      </div>
-    )}
-  </div>
+      <!-- Pagination -->
+      {result.totalPages > 1 && (
+        <div class="flex items-center justify-center gap-2 mt-6">
+          {page > 1 && (
+            <a
+              href={`/apps/${container.slug}/${typeName}?page=${page - 1}${status ? `&status=${status}` : ''}`}
+              class="px-3 py-1.5 rounded-lg text-xs font-medium"
+              style="color:var(--ui-text-muted);background-color:rgba(240,237,232,0.04)"
+            >
+              Previous
+            </a>
+          )}
+          <span class="text-xs" style="color:var(--ui-text-placeholder)">
+            Page {page} of {result.totalPages}
+          </span>
+          {page < result.totalPages && (
+            <a
+              href={`/apps/${container.slug}/${typeName}?page=${page + 1}${status ? `&status=${status}` : ''}`}
+              class="px-3 py-1.5 rounded-lg text-xs font-medium"
+              style="color:var(--ui-text-muted);background-color:rgba(240,237,232,0.04)"
+            >
+              Next
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  )}
 </AppLayout>

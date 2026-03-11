@@ -1,7 +1,7 @@
 ---
 import AppLayout from '../../../../layouts/AppLayout.astro'
 import AppEntityFormIsland from '../../../../islands/AppEntityFormIsland.tsx'
-import { loadAppContext } from '../../../../lib/apps/helpers'
+import { loadAppContext, getUIConfig } from '../../../../lib/apps/helpers'
 import * as entityService from '../../../../../server/modules/entities/service'
 
 const ctx = await loadAppContext(Astro)
@@ -28,6 +28,16 @@ try {
 }
 
 const label = typeName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
+// D10 UI config for detail_config sections
+const uiConfig = await getUIConfig(container.id, typeName)
+
+// Related types from entity type metadata (from type package)
+const manifestEt = (container.manifest?.entity_types ?? []).find(e => e.name === typeName)
+const relatedTypes: Array<{ type: string; relation: string; display: string }> = (manifestEt as any)?.related_types ?? []
+
+// Document slots from type package
+const documentSlots: string[] = (manifestEt as any)?.document_slots ?? []
 ---
 
 <AppLayout
@@ -54,4 +64,65 @@ const label = typeName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     entityStatus={entity.status}
     readOnly={readOnly}
   />
+
+  {/* Related entity types — rendered server-side as link sections */}
+  {relatedTypes.length > 0 && (
+    <div class="max-w-4xl mx-auto px-8 pb-8">
+      <h2 class="text-xs font-semibold uppercase tracking-wider mb-3" style="color:var(--ui-text-muted)">
+        Related
+      </h2>
+      <div class="grid gap-3" style={`grid-template-columns: repeat(${Math.min(relatedTypes.length, 3)}, 1fr)`}>
+        {relatedTypes.map(rt => {
+          const rtLabel = rt.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          const rtExists = entityTypes.some(et => et.name === rt.type)
+          return (
+            <a
+              href={rtExists ? `/apps/${container.slug}/${rt.type}` : '#'}
+              class="rounded-xl p-4 transition-all hover:opacity-80"
+              style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
+            >
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-semibold" style="color:var(--ui-text)">{rtLabel}</span>
+                <span
+                  class="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                  style="background-color:rgba(59,143,232,0.08);color:var(--ui-accent)"
+                >
+                  {rt.relation.replace(/_/g, ' ')}
+                </span>
+              </div>
+              <span class="text-[11px]" style="color:var(--ui-text-muted)">
+                View {rt.display === 'tab' ? 'in tab' : rt.display === 'inline' ? 'inline' : 'section'}
+              </span>
+            </a>
+          )
+        })}
+      </div>
+    </div>
+  )}
+
+  {/* Document slots */}
+  {documentSlots.length > 0 && (
+    <div class="max-w-4xl mx-auto px-8 pb-8">
+      <h2 class="text-xs font-semibold uppercase tracking-wider mb-3" style="color:var(--ui-text-muted)">
+        Documents
+      </h2>
+      <div class="grid gap-2" style={`grid-template-columns: repeat(${Math.min(documentSlots.length, 4)}, 1fr)`}>
+        {documentSlots.map(slot => {
+          const slotLabel = slot.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          return (
+            <div
+              class="rounded-xl p-3 flex items-center gap-2"
+              style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--ui-text-muted)">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              <span class="text-xs font-medium" style="color:var(--ui-text)">{slotLabel}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )}
 </AppLayout>
