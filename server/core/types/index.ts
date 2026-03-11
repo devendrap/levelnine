@@ -73,6 +73,94 @@ export interface ContainerManifest {
     target_type: string
     relation_type: string
     description?: string
+    source_dimension?: string
+  }>
+  roles?: Array<{
+    name: string
+    label: string
+    description: string
+    permissions: string[]
+    can_access_entity_types: string[]
+    source_dimension?: string
+  }>
+  workflows?: Array<{
+    name: string
+    label: string
+    description: string
+    entity_type: string
+    statuses: string[]
+    transitions: Array<{ from: string; to: string; role: string; conditions?: string }>
+    source_dimension?: string
+  }>
+  compliance?: Array<{
+    name: string
+    standard: string
+    description: string
+    entity_types: string[]
+    checkpoints: string[]
+    source_dimension?: string
+  }>
+  documents?: Array<{
+    name: string
+    label: string
+    description: string
+    entity_type?: string
+    format: string
+    retention_days?: number
+    source_dimension?: string
+  }>
+  integrations?: Array<{
+    name: string
+    label: string
+    description: string
+    system_type: string
+    direction: string
+    entity_types: string[]
+    config: Record<string, any>
+    source_dimension?: string
+  }>
+  reports?: Array<{
+    name: string
+    label: string
+    description: string
+    report_type: string
+    entity_types: string[]
+    schema?: Record<string, any>
+    schedule?: string
+    source_dimension?: string
+  }>
+  edge_cases?: Array<{
+    name: string
+    label: string
+    description: string
+    category: string
+    entity_types: string[]
+    handling: string
+    source_dimension?: string
+  }>
+  notifications?: Array<{
+    name: string
+    label: string
+    description: string
+    trigger_entity_type: string
+    trigger_event: string
+    trigger_condition?: string
+    recipients: string[]
+    channel: string
+    escalation_minutes?: number
+    escalation_to?: string
+    template?: string
+    source_dimension?: string
+  }>
+  ui_configs?: Array<{
+    name: string
+    label: string
+    entity_type: string
+    view_type: string
+    grid_config: Record<string, any>
+    detail_config?: Record<string, any>
+    navigation?: Record<string, any>
+    source_dimension?: string
   }>
   navigation?: Array<{
     label: string

@@ -32,6 +32,8 @@ import { Image } from '../components/Image'
 import { Popover } from '../components/Popover'
 import { ContextMenu } from '../components/ContextMenu'
 import { Carousel } from '../components/Carousel'
+import { DataGrid } from '../components/DataGrid'
+import { MasterDetail } from '../components/MasterDetail'
 import type { UIComponent } from './types'
 
 // Container alias — wraps children in a padded div (used by AI-generated schemas)
@@ -65,6 +67,7 @@ const componentMap: Record<string, any> = {
   Checkbox, Select, Textarea, DatePicker, Alert, Accordion,
   Switch, Tooltip, RadioGroup, Skeleton, Pagination, Link,
   Chart, FileUpload, Image, Popover, ContextMenu, Carousel,
+  DataGrid, MasterDetail,
   // Aliases for AI-generated schemas
   Container: ContainerWrapper,
   Grid: GridLayout,
@@ -94,6 +97,18 @@ export function Renderer(props: { node: UIComponent; readOnly?: boolean }) {
           // Thread readOnly as disabled to form components
           if (props.readOnly && formComponents.has(props.node.type)) {
             nodeProps.disabled = true
+          }
+
+          // MasterDetail: render exactly 2 children into left/right slots
+          if (props.node.type === 'MasterDetail' && (props.node as any).children) {
+            const kids = (props.node as any).children as UIComponent[]
+            return (
+              <C {...nodeProps}>
+                <For each={kids}>
+                  {(child: UIComponent) => <Renderer node={child} readOnly={props.readOnly} />}
+                </For>
+              </C>
+            )
           }
 
           // Tabs: convert tabs[].children JSON nodes into JSX children panels

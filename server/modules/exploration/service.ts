@@ -11,6 +11,7 @@ import type {
 } from '../../core/types/index'
 import { getClient, getModel, type Provider } from '../../../src/api/providers'
 import { buildPrompt, parseExplorationOutput } from './prompts'
+import { transaction } from '../../db/index'
 
 export class ExplorationError extends Error {
   constructor(message: string, public status: number) {
@@ -210,17 +211,26 @@ export async function submitGateDecision(
   const currentIdx = dimensions.findIndex(d => d.dimension === step.dimension)
 
   if (decision === 'stop') {
+    // Materialize what we have for this dimension before stopping
+    if (container) {
+      await materializeDimension(run.container_id, step.dimension, container.manifest as ContainerManifest)
+    }
     await repo.updateRun(run.id, { status: 'paused', current_step: null })
     return { run: (await repo.findRunById(run.id))!, isDone: true }
   }
 
   if (decision === 'go_deeper') {
-    // Re-run this dimension from generate
+    // Re-run this dimension from generate — don't materialize yet
     await repo.updateRun(run.id, { current_step: 'generate' })
     return { run: (await repo.findRunById(run.id))!, isDone: false }
   }
 
   if (decision === 'skip' || decision === 'continue') {
+    // Gate approved — materialize this dimension's artifacts into DB rows
+    if (container) {
+      await materializeDimension(run.container_id, step.dimension, container.manifest as ContainerManifest)
+    }
+
     // Move to next dimension
     const nextIdx = currentIdx + 1
     if (nextIdx < dimensions.length) {
@@ -232,7 +242,6 @@ export async function submitGateDecision(
     } else {
       // All dimensions done — check phase
       if (run.phase === 'first_pass') {
-        // Move to holistic review
         await repo.updateRun(run.id, {
           phase: 'holistic_review',
           current_dimension: null,
@@ -241,7 +250,6 @@ export async function submitGateDecision(
         })
         return { run: (await repo.findRunById(run.id))!, isDone: true }
       }
-      // Exploration complete
       await repo.updateRun(run.id, { status: 'completed', current_step: null })
       return { run: (await repo.findRunById(run.id))!, isDone: true }
     }
@@ -319,26 +327,26 @@ function getCompletedDimensions(steps: ExplorationStep[], dimensions: DimensionC
 async function mergeIntoManifest(
   containerId: string,
   dimension: string,
-  parsed: {
-    entity_types_added?: Array<{ name: string; description: string; key_fields?: string[] }>
-    entity_types_modified?: Array<{ name: string; changes: Record<string, any> }>
-    relations_added?: Array<{ source_type: string; target_type: string; relation_type: string; description?: string }>
-    scope_items?: string[]
-    out_of_scope_items?: Array<{ item: string; reason: string }>
-  },
+  parsed: Record<string, any>,
   currentManifest: ContainerManifest,
 ): Promise<void> {
   const manifest = { ...currentManifest }
   manifest.entity_types = [...(manifest.entity_types ?? [])]
   manifest.relations = [...(manifest.relations ?? [])]
+  manifest.roles = [...(manifest.roles ?? [])]
+  manifest.workflows = [...(manifest.workflows ?? [])]
+  manifest.compliance = [...(manifest.compliance ?? [])]
+  manifest.documents = [...(manifest.documents ?? [])]
+  manifest.integrations = [...(manifest.integrations ?? [])]
+  manifest.reports = [...(manifest.reports ?? [])]
+  manifest.edge_cases = [...(manifest.edge_cases ?? [])]
   manifest.scope = [...(manifest.scope ?? [])]
   manifest.out_of_scope = [...(manifest.out_of_scope ?? [])]
 
   // Add new entity types
   if (parsed.entity_types_added?.length) {
     for (const et of parsed.entity_types_added) {
-      const existing = manifest.entity_types.find(e => e.name === et.name)
-      if (!existing) {
+      if (!manifest.entity_types.find(e => e.name === et.name)) {
         manifest.entity_types.push({
           name: et.name,
           description: et.description,
@@ -364,11 +372,91 @@ async function mergeIntoManifest(
   // Add relations
   if (parsed.relations_added?.length) {
     for (const rel of parsed.relations_added) {
-      const exists = manifest.relations.some(
-        r => r.source_type === rel.source_type && r.target_type === rel.target_type && r.relation_type === rel.relation_type,
-      )
-      if (!exists) {
-        manifest.relations.push(rel)
+      if (!manifest.relations.some(r => r.source_type === rel.source_type && r.target_type === rel.target_type && r.relation_type === rel.relation_type)) {
+        manifest.relations.push({ ...rel, source_dimension: dimension })
+      }
+    }
+  }
+
+  // D2: Roles
+  if (parsed.roles_added?.length) {
+    for (const role of parsed.roles_added) {
+      if (!manifest.roles.find(r => r.name === role.name)) {
+        manifest.roles.push({ ...role, source_dimension: dimension })
+      }
+    }
+  }
+
+  // D3: Workflows
+  if (parsed.workflows_added?.length) {
+    for (const wf of parsed.workflows_added) {
+      if (!manifest.workflows.find(w => w.name === wf.name)) {
+        manifest.workflows.push({ ...wf, source_dimension: dimension })
+      }
+    }
+  }
+
+  // D4: Compliance
+  if (parsed.compliance_added?.length) {
+    for (const c of parsed.compliance_added) {
+      if (!manifest.compliance.find(x => x.name === c.name)) {
+        manifest.compliance.push({ ...c, source_dimension: dimension })
+      }
+    }
+  }
+
+  // D5: Documents
+  if (parsed.documents_added?.length) {
+    for (const d of parsed.documents_added) {
+      if (!manifest.documents.find(x => x.name === d.name)) {
+        manifest.documents.push({ ...d, source_dimension: dimension })
+      }
+    }
+  }
+
+  // D6: Integrations
+  if (parsed.integrations_added?.length) {
+    for (const i of parsed.integrations_added) {
+      if (!manifest.integrations.find(x => x.name === i.name)) {
+        manifest.integrations.push({ ...i, source_dimension: dimension })
+      }
+    }
+  }
+
+  // D7: Reports
+  if (parsed.reports_added?.length) {
+    for (const r of parsed.reports_added) {
+      if (!manifest.reports.find(x => x.name === r.name)) {
+        manifest.reports.push({ ...r, source_dimension: dimension })
+      }
+    }
+  }
+
+  // D8: Edge cases
+  if (parsed.edge_cases_added?.length) {
+    for (const e of parsed.edge_cases_added) {
+      if (!manifest.edge_cases.find(x => x.name === e.name)) {
+        manifest.edge_cases.push({ ...e, source_dimension: dimension })
+      }
+    }
+  }
+
+  // D9: Notifications
+  manifest.notifications = [...(manifest.notifications ?? [])]
+  if (parsed.notifications_added?.length) {
+    for (const n of parsed.notifications_added) {
+      if (!manifest.notifications.find(x => x.name === n.name)) {
+        manifest.notifications.push({ ...n, source_dimension: dimension })
+      }
+    }
+  }
+
+  // D10: UI configs
+  manifest.ui_configs = [...(manifest.ui_configs ?? [])]
+  if (parsed.ui_configs_added?.length) {
+    for (const u of parsed.ui_configs_added) {
+      if (!manifest.ui_configs.find(x => x.name === u.name)) {
+        manifest.ui_configs.push({ ...u, source_dimension: dimension })
       }
     }
   }
@@ -388,4 +476,168 @@ async function mergeIntoManifest(
   }
 
   await containerRepo.updateContainer(containerId, { manifest })
+}
+
+// ============================================================================
+// Materialize — promote manifest artifacts for a dimension into DB rows
+// Called on gate approval (continue/skip), not at lock time
+// ============================================================================
+
+async function materializeDimension(
+  containerId: string,
+  dimension: string,
+  manifest: ContainerManifest,
+): Promise<void> {
+  await transaction(async (client) => {
+    // Entity types — insert/upsert those from this dimension
+    const dimEntityTypes = (manifest.entity_types ?? []).filter(et => et.source_dimension === dimension)
+    for (const et of dimEntityTypes) {
+      await client.query(
+        `INSERT INTO entity_types (name, description, schema, container_id)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (name, COALESCE(container_id, '00000000-0000-0000-0000-000000000000')) DO UPDATE SET
+           description = EXCLUDED.description, schema = EXCLUDED.schema, updated_at = NOW()`,
+        [et.name, et.description, et.schema ? JSON.stringify(et.schema) : null, containerId],
+      )
+    }
+
+    // Relations
+    const dimRelations = (manifest.relations ?? []).filter(r => r.source_dimension === dimension)
+    for (const rel of dimRelations) {
+      await client.query(
+        `INSERT INTO container_relations (container_id, source_type, target_type, relation_type, description, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (container_id, source_type, target_type, relation_type) DO UPDATE SET
+           description = EXCLUDED.description`,
+        [containerId, rel.source_type, rel.target_type, rel.relation_type, rel.description ?? null, dimension],
+      )
+    }
+
+    // Roles
+    const dimRoles = (manifest.roles ?? []).filter(r => r.source_dimension === dimension)
+    for (const role of dimRoles) {
+      await client.query(
+        `INSERT INTO container_roles (container_id, name, label, description, permissions, can_access_entity_types, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           permissions = EXCLUDED.permissions, can_access_entity_types = EXCLUDED.can_access_entity_types`,
+        [containerId, role.name, role.label, role.description, JSON.stringify(role.permissions), JSON.stringify(role.can_access_entity_types), dimension],
+      )
+    }
+
+    // Workflows
+    const dimWorkflows = (manifest.workflows ?? []).filter(w => w.source_dimension === dimension)
+    for (const wf of dimWorkflows) {
+      await client.query(
+        `INSERT INTO container_workflows (container_id, name, label, description, entity_type, statuses, transitions, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           entity_type = EXCLUDED.entity_type, statuses = EXCLUDED.statuses, transitions = EXCLUDED.transitions`,
+        [containerId, wf.name, wf.label, wf.description, wf.entity_type, JSON.stringify(wf.statuses), JSON.stringify(wf.transitions), dimension],
+      )
+    }
+
+    // Compliance
+    const dimCompliance = (manifest.compliance ?? []).filter(c => c.source_dimension === dimension)
+    for (const c of dimCompliance) {
+      await client.query(
+        `INSERT INTO container_compliance (container_id, name, standard, description, entity_types, checkpoints, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           standard = EXCLUDED.standard, description = EXCLUDED.description,
+           entity_types = EXCLUDED.entity_types, checkpoints = EXCLUDED.checkpoints`,
+        [containerId, c.name, c.standard, c.description, JSON.stringify(c.entity_types), JSON.stringify(c.checkpoints), dimension],
+      )
+    }
+
+    // Documents
+    const dimDocs = (manifest.documents ?? []).filter(d => d.source_dimension === dimension)
+    for (const d of dimDocs) {
+      await client.query(
+        `INSERT INTO container_documents (container_id, name, label, description, entity_type, format, retention_days, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           entity_type = EXCLUDED.entity_type, format = EXCLUDED.format, retention_days = EXCLUDED.retention_days`,
+        [containerId, d.name, d.label, d.description, d.entity_type ?? null, d.format, d.retention_days ?? null, dimension],
+      )
+    }
+
+    // Integrations
+    const dimIntegrations = (manifest.integrations ?? []).filter(i => i.source_dimension === dimension)
+    for (const i of dimIntegrations) {
+      await client.query(
+        `INSERT INTO container_integrations (container_id, name, label, description, system_type, direction, entity_types, config, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           system_type = EXCLUDED.system_type, direction = EXCLUDED.direction,
+           entity_types = EXCLUDED.entity_types, config = EXCLUDED.config`,
+        [containerId, i.name, i.label, i.description, i.system_type, i.direction, JSON.stringify(i.entity_types), JSON.stringify(i.config), dimension],
+      )
+    }
+
+    // Reports
+    const dimReports = (manifest.reports ?? []).filter(r => r.source_dimension === dimension)
+    for (const r of dimReports) {
+      await client.query(
+        `INSERT INTO container_reports (container_id, name, label, description, report_type, entity_types, schema, schedule, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           report_type = EXCLUDED.report_type, entity_types = EXCLUDED.entity_types,
+           schema = EXCLUDED.schema, schedule = EXCLUDED.schedule`,
+        [containerId, r.name, r.label, r.description, r.report_type, JSON.stringify(r.entity_types), r.schema ? JSON.stringify(r.schema) : null, r.schedule ?? null, dimension],
+      )
+    }
+
+    // Edge cases
+    const dimEdgeCases = (manifest.edge_cases ?? []).filter(e => e.source_dimension === dimension)
+    for (const e of dimEdgeCases) {
+      await client.query(
+        `INSERT INTO container_edge_cases (container_id, name, label, description, category, entity_types, handling, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           category = EXCLUDED.category, entity_types = EXCLUDED.entity_types, handling = EXCLUDED.handling`,
+        [containerId, e.name, e.label, e.description, e.category, JSON.stringify(e.entity_types), e.handling, dimension],
+      )
+    }
+
+    // Notifications (D9)
+    const dimNotifications = (manifest.notifications ?? []).filter(n => n.source_dimension === dimension)
+    for (const n of dimNotifications) {
+      await client.query(
+        `INSERT INTO container_notifications (container_id, name, label, description, trigger_entity_type, trigger_event, trigger_condition, recipients, channel, escalation_minutes, escalation_to, template, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           trigger_entity_type = EXCLUDED.trigger_entity_type, trigger_event = EXCLUDED.trigger_event,
+           trigger_condition = EXCLUDED.trigger_condition, recipients = EXCLUDED.recipients,
+           channel = EXCLUDED.channel, escalation_minutes = EXCLUDED.escalation_minutes,
+           escalation_to = EXCLUDED.escalation_to, template = EXCLUDED.template`,
+        [containerId, n.name, n.label, n.description, n.trigger_entity_type, n.trigger_event,
+         n.trigger_condition ?? null, JSON.stringify(n.recipients), n.channel,
+         n.escalation_minutes ?? null, n.escalation_to ?? null, n.template ?? null, dimension],
+      )
+    }
+
+    // UI configs (D10)
+    const dimUIConfigs = (manifest.ui_configs ?? []).filter(u => u.source_dimension === dimension)
+    for (const u of dimUIConfigs) {
+      await client.query(
+        `INSERT INTO container_ui_configs (container_id, name, label, entity_type, view_type, grid_config, detail_config, navigation, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, entity_type = EXCLUDED.entity_type,
+           view_type = EXCLUDED.view_type, grid_config = EXCLUDED.grid_config,
+           detail_config = EXCLUDED.detail_config, navigation = EXCLUDED.navigation`,
+        [containerId, u.name, u.label, u.entity_type, u.view_type,
+         JSON.stringify(u.grid_config), JSON.stringify(u.detail_config ?? {}),
+         JSON.stringify(u.navigation ?? {}), dimension],
+      )
+    }
+  })
 }

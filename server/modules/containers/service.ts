@@ -359,9 +359,10 @@ export async function lockContainer(id: string): Promise<Container> {
     )
   }
 
-  // Lock container AND create real entity_types in a single transaction
+  // Upsert any entity types not yet materialized (e.g. from chat phase or
+  // entity types added across multiple dimensions). Uses ON CONFLICT so
+  // rows already created at gate-approval time are simply updated.
   const result = await transaction(async (client) => {
-    // Create entity_types rows scoped to this container
     for (const et of manifest.entity_types!) {
       await client.query(
         `INSERT INTO entity_types (name, description, schema, container_id)
@@ -371,6 +372,17 @@ export async function lockContainer(id: string): Promise<Container> {
            schema = EXCLUDED.schema,
            updated_at = NOW()`,
         [et.name, et.description, et.schema ? JSON.stringify(et.schema) : null, id],
+      )
+    }
+
+    // Upsert any remaining relations not yet materialized
+    for (const rel of manifest.relations ?? []) {
+      await client.query(
+        `INSERT INTO container_relations (container_id, source_type, target_type, relation_type, description, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (container_id, source_type, target_type, relation_type) DO UPDATE SET
+           description = EXCLUDED.description`,
+        [id, rel.source_type, rel.target_type, rel.relation_type, rel.description ?? null, rel.source_dimension ?? null],
       )
     }
 

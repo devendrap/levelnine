@@ -314,6 +314,37 @@ const CarouselSchema = z.object({
   }),
 }).describe('Content carousel with auto-play and navigation')
 
+const DataGridColumnSchema = z.object({
+  field: z.string().describe('Field key in the data object'),
+  label: z.string().describe('Column header label'),
+  width: z.string().optional().describe('Column width (e.g. "150px", "30%")'),
+  sortable: z.boolean().default(true).describe('Whether column is sortable'),
+  filterable: z.boolean().default(false).describe('Whether column has a filter'),
+})
+
+const DataGridSchema = z.object({
+  type: z.literal('DataGrid'),
+  props: z.object({
+    columns: z.array(DataGridColumnSchema).describe('Column definitions'),
+    data: z.array(z.record(z.any())).optional().describe('Array of row objects'),
+    selectedId: z.string().optional().describe('Currently selected row ID'),
+    idField: z.string().default('id').describe('Field name used as unique row identifier'),
+    bind: z.string().optional().describe('State key to bind selected row ID to'),
+    pageSize: z.number().default(20).describe('Rows per page'),
+    searchable: z.boolean().default(false).describe('Show search bar'),
+  }),
+}).describe('Interactive data grid with sorting, search, pagination, and row selection')
+
+const MasterDetailSchema = z.object({
+  type: z.literal('MasterDetail'),
+  props: z.object({
+    splitRatio: z.string().default('40/60').describe('Left/right width ratio (e.g. "40/60", "30/70")'),
+    minLeftWidth: z.string().default('200px').describe('Minimum width for left panel'),
+    collapsible: z.boolean().default(false).describe('Whether left panel can collapse to icon rail'),
+  }),
+  children: z.array(UINode).min(2).max(2).describe('Exactly 2 children: first is grid panel, second is detail panel'),
+}).describe('Master-detail layout: grid on left, detail panel on right. Single-click a row to show details.')
+
 export const ComponentSchema = z.discriminatedUnion('type', [
   HeadingSchema, TextSchema, ButtonSchema, InputSchema,
   BadgeSchema, ListSchema, SeparatorSchema,
@@ -322,6 +353,7 @@ export const ComponentSchema = z.discriminatedUnion('type', [
   CheckboxSchema, SelectSchema, TextareaSchema, DatePickerSchema, AlertSchema, AccordionSchema,
   SwitchSchema, TooltipSchema, RadioGroupSchema, SkeletonSchema, PaginationSchema, LinkSchema,
   ChartSchema, FileUploadSchema, ImageSchema, PopoverSchema, ContextMenuSchema, CarouselSchema,
+  DataGridSchema, MasterDetailSchema,
 ])
 
 export { UINode }

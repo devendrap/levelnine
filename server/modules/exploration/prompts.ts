@@ -1,5 +1,19 @@
 import type { ContainerManifest, DimensionConfig } from '../../core/types/index'
 
+// Dimension-specific artifact schemas for the output format
+const DIMENSION_ARTIFACTS: Record<string, string> = {
+  structure: '',  // D1 uses only entity_types + relations (base fields)
+  roles: `  "roles_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "permissions": ["action:resource"], "can_access_entity_types": ["entity_name"]}],`,
+  workflows: `  "workflows_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "entity_type": "which_entity", "statuses": ["draft","active","complete"], "transitions": [{"from": "draft", "to": "active", "role": "role_name", "conditions": "optional"}]}],`,
+  compliance: `  "compliance_added": [{"name": "snake_case", "standard": "PCAOB AS 2201", "description": "...", "entity_types": ["affected_types"], "checkpoints": ["what must be verified"]}],`,
+  documents: `  "documents_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "entity_type": "optional_owner", "format": "pdf", "retention_days": 365}],`,
+  integrations: `  "integrations_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "system_type": "erp|crm|filing|api", "direction": "import|export|bidirectional", "entity_types": ["synced_types"], "config": {}}],`,
+  reporting: `  "reports_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "report_type": "dashboard|scheduled|ad_hoc", "entity_types": ["data_sources"], "schedule": "on_demand"}],`,
+  edge_cases: `  "edge_cases_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "category": "exception|error_recovery|boundary|concurrency", "entity_types": ["affected_types"], "handling": "how to handle"}],`,
+  notifications: `  "notifications_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "trigger_entity_type": "entity_name", "trigger_event": "status_change|created|updated|field_change|sla_breach", "trigger_condition": "status == 'pending_approval'", "recipients": ["role_name"], "channel": "email|in_app|both", "escalation_minutes": 2880, "escalation_to": "senior_role", "template": "Notification message with {{entity_name}} variables"}],`,
+  ui_navigation: `  "ui_configs_added": [{"name": "snake_case_list_view", "label": "Human Label", "entity_type": "entity_name", "view_type": "master_detail|full_page|dashboard|grid_only", "grid_config": {"columns": [{"field": "field_name", "label": "Column Label", "width": "150px", "sortable": true}], "default_sort": {"field": "name", "direction": "asc"}, "row_actions": ["edit","archive"], "bulk_actions": ["export"]}, "detail_config": {"layout": "tabs|accordion|sections", "sections": [{"label": "Section Name", "fields": ["field1","field2"], "related_entity_type": "optional_nested_entity"}]}, "navigation": {"menu_group": "Main|Settings|Reports", "icon": "optional", "sort_order": 1}}],`,
+}
+
 // Universal step wrappers (from env or defaults)
 const GENERATE_WRAPPER = process.env.EXPLORATION_GENERATE_WRAPPER ?? `You are exploring the "{{dimension_label}}" dimension for the "{{container_name}}" application.
 
@@ -16,6 +30,7 @@ Respond with a structured analysis. At the end, include a JSON block wrapped in 
   "entity_types_added": [{"name": "snake_case", "description": "...", "key_fields": ["..."]}],
   "entity_types_modified": [{"name": "existing_name", "changes": {"description": "new desc", "key_fields": ["updated"]}}],
   "relations_added": [{"source_type": "...", "target_type": "...", "relation_type": "...", "description": "..."}],
+{{dimension_artifacts}}
   "scope_items": ["items this dimension covers"],
   "out_of_scope_items": [{"item": "...", "reason": "..."}]
 }
@@ -107,11 +122,14 @@ export function buildPrompt(
   const entityTypeCount = (manifest.entity_types ?? []).length
   const relationCount = (manifest.relations ?? []).length
 
+  const dimensionArtifacts = DIMENSION_ARTIFACTS[dimension.dimension] ?? ''
+
   const replacements: Record<string, string> = {
     '{{dimension_label}}': dimension.label,
     '{{dimension_prompt}}': dimension.system_prompt,
     '{{container_name}}': containerName,
     '{{manifest_summary}}': manifestSummary,
+    '{{dimension_artifacts}}': dimensionArtifacts,
     '{{previous_output}}': context.previousOutput ?? '',
     '{{step_summaries}}': context.stepSummaries ?? '',
     '{{all_dimensions}}': (context.allDimensions ?? []).join(', '),
@@ -156,6 +174,78 @@ function buildManifestSummary(manifest: ContainerManifest): string {
     }
   }
 
+  const roles = manifest.roles ?? []
+  if (roles.length > 0) {
+    parts.push(`\n## Roles (${roles.length})`)
+    for (const r of roles) {
+      parts.push(`- **${r.name}** (${r.label}): ${r.description} — permissions: ${r.permissions.join(', ')}`)
+    }
+  }
+
+  const workflows = manifest.workflows ?? []
+  if (workflows.length > 0) {
+    parts.push(`\n## Workflows (${workflows.length})`)
+    for (const w of workflows) {
+      parts.push(`- **${w.name}** on ${w.entity_type}: ${w.statuses.join(' → ')}`)
+    }
+  }
+
+  const compliance = manifest.compliance ?? []
+  if (compliance.length > 0) {
+    parts.push(`\n## Compliance (${compliance.length})`)
+    for (const c of compliance) {
+      parts.push(`- **${c.name}** (${c.standard}): ${c.description}`)
+    }
+  }
+
+  const documents = manifest.documents ?? []
+  if (documents.length > 0) {
+    parts.push(`\n## Documents (${documents.length})`)
+    for (const d of documents) {
+      parts.push(`- **${d.name}** (${d.format}): ${d.description}`)
+    }
+  }
+
+  const integrations = manifest.integrations ?? []
+  if (integrations.length > 0) {
+    parts.push(`\n## Integrations (${integrations.length})`)
+    for (const i of integrations) {
+      parts.push(`- **${i.name}** (${i.system_type}, ${i.direction}): ${i.description}`)
+    }
+  }
+
+  const reports = manifest.reports ?? []
+  if (reports.length > 0) {
+    parts.push(`\n## Reports (${reports.length})`)
+    for (const r of reports) {
+      parts.push(`- **${r.name}** (${r.report_type}): ${r.description}`)
+    }
+  }
+
+  const edgeCases = manifest.edge_cases ?? []
+  if (edgeCases.length > 0) {
+    parts.push(`\n## Edge Cases (${edgeCases.length})`)
+    for (const e of edgeCases) {
+      parts.push(`- **${e.name}** (${e.category}): ${e.description}`)
+    }
+  }
+
+  const notifications = manifest.notifications ?? []
+  if (notifications.length > 0) {
+    parts.push(`\n## Notifications (${notifications.length})`)
+    for (const n of notifications) {
+      parts.push(`- **${n.name}** (${n.trigger_event} on ${n.trigger_entity_type}): ${n.description} → ${n.recipients.join(', ')} via ${n.channel}`)
+    }
+  }
+
+  const uiConfigs = manifest.ui_configs ?? []
+  if (uiConfigs.length > 0) {
+    parts.push(`\n## UI Configs (${uiConfigs.length})`)
+    for (const u of uiConfigs) {
+      parts.push(`- **${u.name}** (${u.view_type} for ${u.entity_type}): ${u.label}`)
+    }
+  }
+
   if (manifest.scope?.length) {
     parts.push(`\n## Scope: ${manifest.scope.join(', ')}`)
   }
@@ -167,18 +257,30 @@ function buildManifestSummary(manifest: ContainerManifest): string {
   return parts.length > 0 ? parts.join('\n') : '(empty manifest)'
 }
 
-export function parseExplorationOutput(llmOutput: string): {
+export interface ParsedExplorationOutput {
   entity_types_added?: Array<{ name: string; description: string; key_fields?: string[] }>
   entity_types_modified?: Array<{ name: string; changes: Record<string, any> }>
   relations_added?: Array<{ source_type: string; target_type: string; relation_type: string; description?: string }>
   relations_modified?: Array<{ source_type: string; target_type: string; changes: Record<string, any> }>
+  // D2-D8 dimension-specific artifacts
+  roles_added?: Array<{ name: string; label: string; description: string; permissions: string[]; can_access_entity_types: string[] }>
+  workflows_added?: Array<{ name: string; label: string; description: string; entity_type: string; statuses: string[]; transitions: Array<{ from: string; to: string; role: string; conditions?: string }> }>
+  compliance_added?: Array<{ name: string; standard: string; description: string; entity_types: string[]; checkpoints: string[] }>
+  documents_added?: Array<{ name: string; label: string; description: string; entity_type?: string; format: string; retention_days?: number }>
+  integrations_added?: Array<{ name: string; label: string; description: string; system_type: string; direction: string; entity_types: string[]; config: Record<string, any> }>
+  reports_added?: Array<{ name: string; label: string; description: string; report_type: string; entity_types: string[]; schedule?: string }>
+  edge_cases_added?: Array<{ name: string; label: string; description: string; category: string; entity_types: string[]; handling: string }>
+  notifications_added?: Array<{ name: string; label: string; description: string; trigger_entity_type: string; trigger_event: string; trigger_condition?: string; recipients: string[]; channel: string; escalation_minutes?: number; escalation_to?: string; template?: string }>
+  ui_configs_added?: Array<{ name: string; label: string; entity_type: string; view_type: string; grid_config: Record<string, any>; detail_config?: Record<string, any>; navigation?: Record<string, any> }>
   explore_opportunities?: Array<{ dimension: string; topic: string; reason: string }>
   out_of_scope_items?: Array<{ item: string; reason: string }>
   scope_items?: string[]
   issues_found?: string[]
   corrections_applied?: string[]
   gaps_summary?: string
-} | null {
+}
+
+export function parseExplorationOutput(llmOutput: string): ParsedExplorationOutput | null {
   const match = llmOutput.match(/```json:exploration_output\s*([\s\S]*?)```/)
   if (!match) return null
 
