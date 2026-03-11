@@ -28,23 +28,25 @@ export async function insert(data: {
   name: string
   password_hash: string
   role?: string
+  domain_role?: string
   invited_by?: string
 }): Promise<AppUser> {
   const result = await query<AppUser>(
-    `INSERT INTO app_users (container_id, email, name, password_hash, role, invited_by)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO app_users (container_id, email, name, password_hash, role, domain_role, invited_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [data.container_id, data.email, data.name, data.password_hash, data.role ?? 'editor', data.invited_by ?? null],
+    [data.container_id, data.email, data.name, data.password_hash, data.role ?? 'editor', data.domain_role ?? null, data.invited_by ?? null],
   )
   return result.rows[0]
 }
 
-export async function update(id: string, data: { role?: string; is_active?: boolean }): Promise<AppUser | null> {
+export async function update(id: string, data: { role?: string; domain_role?: string; is_active?: boolean }): Promise<AppUser | null> {
   const sets: string[] = []
   const vals: any[] = []
   let idx = 1
 
   if (data.role !== undefined) { sets.push(`role = $${idx++}`); vals.push(data.role) }
+  if (data.domain_role !== undefined) { sets.push(`domain_role = $${idx++}`); vals.push(data.domain_role) }
   if (data.is_active !== undefined) { sets.push(`is_active = $${idx++}`); vals.push(data.is_active) }
   if (sets.length === 0) return findById(id)
 

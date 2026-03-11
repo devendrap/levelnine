@@ -1,5 +1,6 @@
 import { query } from '../../db/index'
 import { notifyRole } from './service'
+import * as security from '../security/service'
 
 /**
  * D9→C2 bridge: Match audit log events against container notification rules
@@ -39,20 +40,28 @@ export async function triggerNotifications(event: {
     [event.container_id, event.entity_type, triggerEvents],
   )
 
+  // Pre-load security classifications for masking notification content
+  const classifications = await security.getClassifications(event.container_id, event.entity_type)
+
   for (const rule of rules.rows) {
     // Check trigger condition if specified
     if (rule.trigger_condition && !evaluateCondition(rule.trigger_condition, event)) {
       continue
     }
 
-    // Interpolate template
-    const body = interpolateTemplate(
-      rule.template ?? `{{entity_type}} "{{entity_name}}" — ${event.action}`,
-      event,
-    )
-
-    // Send to each recipient role
+    // Send to each recipient role — mask values per role
     for (const role of rule.recipients) {
+      // Mask new_values based on recipient role's security classification
+      const maskedEvent = { ...event }
+      if (classifications.length > 0 && maskedEvent.new_values) {
+        maskedEvent.new_values = security.maskContent(maskedEvent.new_values, classifications, role)
+      }
+
+      const body = interpolateTemplate(
+        rule.template ?? `{{entity_type}} "{{entity_name}}" — ${event.action}`,
+        maskedEvent,
+      )
+
       await notifyRole({
         container_id: event.container_id,
         role,

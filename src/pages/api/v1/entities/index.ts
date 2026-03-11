@@ -5,18 +5,19 @@ import { verifyAppToken } from '../../../../../server/modules/app-auth/service'
 import * as service from '../../../../../server/modules/entities/service'
 import { ValidationError } from '../../../../../server/modules/entities/service'
 import { checkRoleAccess } from '../../../../../server/modules/runtime/enforcement'
+import * as security from '../../../../../server/modules/security/service'
 
 /** Accept either platform admin token or app_token */
 function requireAnyAuth(request: Request) {
   // Try platform token
   const platform = optionalAuth(request)
-  if (platform) return { type: 'platform' as const, userId: platform.userId, role: platform.role }
+  if (platform) return { type: 'platform' as const, userId: platform.userId, role: platform.role, domainRole: null as string | null }
 
   // Try app token
   const appToken = extractAppToken(request)
   if (appToken) {
     const app = verifyAppToken(appToken)
-    return { type: 'app' as const, userId: app.userId, role: app.role, containerId: app.containerId }
+    return { type: 'app' as const, userId: app.userId, role: app.role, domainRole: app.domainRole, containerId: app.containerId }
   }
 
   throw new Error('Authentication required')
@@ -25,16 +26,32 @@ function requireAnyAuth(request: Request) {
 // GET /api/v1/entities?type=X&parent=Y&status=Z&period=P&page=1&pageSize=25&container_id=X
 export const GET: APIRoute = async ({ url, request }) => {
   try {
-    requireAnyAuth(request)
+    const auth = requireAnyAuth(request)
+    const containerId = url.searchParams.get('container_id') ?? undefined
+    const typeName = url.searchParams.get('type') ?? undefined
+
     const result = await service.listEntities({
-      type: url.searchParams.get('type') ?? undefined,
+      type: typeName,
       parent: url.searchParams.get('parent') ?? undefined,
       status: url.searchParams.get('status') ?? undefined,
       period: url.searchParams.get('period') ?? undefined,
-      container_id: url.searchParams.get('container_id') ?? undefined,
+      container_id: containerId,
       page: Number(url.searchParams.get('page') ?? 1),
       pageSize: Number(url.searchParams.get('pageSize') ?? 25),
     })
+
+    // Apply field-level security masking on list results (C4)
+    if (containerId && typeName) {
+      const classifications = await security.getClassifications(containerId, typeName)
+      if (classifications.length > 0) {
+        for (const entity of result.data) {
+          if (entity.content) {
+            entity.content = security.maskContent(entity.content as Record<string, any>, classifications, auth.role)
+          }
+        }
+      }
+    }
+
     return Response.json(result)
   } catch (err: any) {
     return Response.json({ error: err.message }, { status: err.status ?? 401 })
@@ -58,7 +75,8 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Role-based entity type access check (Step 7)
     if (auth.type === 'app' && auth.containerId && body.entity_type_name) {
-      const access = await checkRoleAccess(auth.containerId, auth.role, body.entity_type_name)
+      const roleForAccess = auth.domainRole ?? auth.role
+      const access = await checkRoleAccess(auth.containerId, roleForAccess, body.entity_type_name)
       if (!access.allowed) {
         return Response.json({ error: access.reason }, { status: 403 })
       }

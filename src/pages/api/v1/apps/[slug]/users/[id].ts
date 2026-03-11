@@ -10,6 +10,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     const body = await request.json()
     const user = await appAuth.updateUser(params.id!, {
       role: body.role,
+      domain_role: body.domain_role,
       is_active: body.is_active,
     })
     return Response.json(user)

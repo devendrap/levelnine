@@ -196,6 +196,7 @@ export interface AppUser {
   name: string
   password_hash: string
   role: 'admin' | 'editor' | 'viewer'
+  domain_role: string | null
   is_active: boolean
   invited_by: string | null
   created_at: Date

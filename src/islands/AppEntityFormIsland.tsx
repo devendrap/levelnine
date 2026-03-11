@@ -1,7 +1,9 @@
-import { createSignal, onMount, Show } from 'solid-js'
+import { createSignal, onMount, Show, For } from 'solid-js'
 import { useStore } from '@nanostores/solid'
 import { $formData, resetFormData, seedFormData } from '../stores/ui'
 import { Renderer } from '../renderer/Renderer'
+
+type TransitionInfo = { to: string; role?: string; conditions?: string; allowed: boolean; reason?: string }
 
 export default function AppEntityFormIsland(props: {
   containerId: string
@@ -24,8 +26,31 @@ export default function AppEntityFormIsland(props: {
   const [error, setError] = createSignal('')
   const [saved, setSaved] = createSignal(false)
 
+  // Workflow state
+  const [workflowStatuses, setWorkflowStatuses] = createSignal<string[]>([])
+  const [transitions, setTransitions] = createSignal<TransitionInfo[]>([])
+  const [hasWorkflow, setHasWorkflow] = createSignal(false)
+
   const isEdit = !!props.entityId
   const label = props.typeName.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+
+  // Default statuses when no workflow defined
+  const defaultStatuses = ['draft', 'active', 'review', 'approved', 'archived']
+
+  const fetchWorkflow = async (currentStatus: string) => {
+    try {
+      const res = await fetch(
+        `/api/v1/containers/${props.containerId}/workflows/${props.typeName}?status=${currentStatus}`,
+      )
+      if (!res.ok) return
+      const info = await res.json()
+      setHasWorkflow(info.hasWorkflow)
+      if (info.hasWorkflow) {
+        setWorkflowStatuses(info.statuses ?? [])
+        setTransitions(info.transitions ?? [])
+      }
+    } catch { /* use defaults */ }
+  }
 
   onMount(() => {
     if (isEdit && props.entityContent) {
@@ -33,7 +58,36 @@ export default function AppEntityFormIsland(props: {
     } else {
       resetFormData()
     }
+    // Fetch workflow transitions for current status
+    if (isEdit && props.entityStatus) {
+      fetchWorkflow(props.entityStatus)
+    }
   })
+
+  // Compute which statuses to show in dropdown
+  const availableStatuses = () => {
+    if (!hasWorkflow()) return defaultStatuses
+    const current = props.entityStatus ?? status()
+    const allowed = transitions().map(t => t.to)
+    // Always include current status + allowed transitions
+    const set = new Set([current, ...allowed])
+    // Order by workflow statuses order
+    return workflowStatuses().filter(s => set.has(s))
+  }
+
+  // Check if a status option is disabled (transition exists but role too low)
+  const isStatusDisabled = (s: string) => {
+    if (s === (props.entityStatus ?? status())) return false // current status always selectable
+    if (!hasWorkflow()) return false
+    const t = transitions().find(t => t.to === s)
+    return t ? !t.allowed : true
+  }
+
+  const statusHint = (s: string) => {
+    if (!hasWorkflow()) return undefined
+    const t = transitions().find(t => t.to === s)
+    return t?.reason
+  }
 
   const save = async () => {
     if (!name().trim()) { setError('Name is required'); return }
@@ -57,6 +111,10 @@ export default function AppEntityFormIsland(props: {
         }
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
+        // Re-fetch transitions for new status
+        if (status() !== props.entityStatus) {
+          fetchWorkflow(status())
+        }
       } else {
         const res = await fetch('/api/v1/entities', {
           method: 'POST',
@@ -82,8 +140,6 @@ export default function AppEntityFormIsland(props: {
       setSaving(false)
     }
   }
-
-  const statuses = ['draft', 'active', 'review', 'approved', 'archived']
 
   return (
     <div class="max-w-4xl mx-auto px-8 py-8">
@@ -161,7 +217,7 @@ export default function AppEntityFormIsland(props: {
             />
           </div>
           <Show when={isEdit}>
-            <div style={{ width: "160px" }}>
+            <div style={{ width: "180px" }}>
               <label class="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--ui-text-muted)" }}>
                 Status
               </label>
@@ -176,11 +232,17 @@ export default function AppEntityFormIsland(props: {
                   "background-color": "var(--ui-bg-subtle)",
                 }}
               >
-                {statuses.map((s) => (
-                  <option value={s} style={{ background: "var(--ui-bg)", color: "var(--ui-text)" }}>
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                  </option>
-                ))}
+                <For each={availableStatuses()}>
+                  {(s) => (
+                    <option
+                      value={s}
+                      disabled={isStatusDisabled(s)}
+                      style={{ background: "var(--ui-bg)", color: isStatusDisabled(s) ? "var(--ui-text-placeholder)" : "var(--ui-text)" }}
+                    >
+                      {s.charAt(0).toUpperCase() + s.slice(1)}{isStatusDisabled(s) && statusHint(s) ? ` (${statusHint(s)})` : ''}
+                    </option>
+                  )}
+                </For>
               </select>
             </div>
           </Show>

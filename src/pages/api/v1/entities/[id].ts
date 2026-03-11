@@ -8,12 +8,12 @@ import { checkRoleAccess } from '../../../../../server/modules/runtime/enforceme
 
 function requireAnyAuth(request: Request) {
   const platform = optionalAuth(request)
-  if (platform) return { type: 'platform' as const, userId: platform.userId, role: platform.role }
+  if (platform) return { type: 'platform' as const, userId: platform.userId, role: platform.role, domainRole: null as string | null }
 
   const appToken = extractAppToken(request)
   if (appToken) {
     const app = verifyAppToken(appToken)
-    return { type: 'app' as const, userId: app.userId, role: app.role, containerId: app.containerId }
+    return { type: 'app' as const, userId: app.userId, role: app.role, domainRole: app.domainRole, containerId: app.containerId }
   }
 
   throw new Error('Authentication required')
@@ -25,9 +25,10 @@ export const GET: APIRoute = async ({ params, request }) => {
     const auth = requireAnyAuth(request)
     const entity = await service.getEntity(params.id!)
 
-    // Role-based entity type access check (Step 7)
+    // Role-based entity type access check — use domain_role when available
     if (auth.type === 'app' && auth.containerId && entity.entity_type?.name) {
-      const access = await checkRoleAccess(auth.containerId, auth.role, entity.entity_type.name)
+      const roleForAccess = auth.domainRole ?? auth.role
+      const access = await checkRoleAccess(auth.containerId, roleForAccess, entity.entity_type.name)
       if (!access.allowed) {
         return Response.json({ error: access.reason }, { status: 403 })
       }

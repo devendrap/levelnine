@@ -139,6 +139,60 @@ export async function checkWorkflowTransition(
   return { allowed: true }
 }
 
+/**
+ * Get the full workflow definition for an entity type, including available
+ * transitions from a given status filtered by user role.
+ */
+export async function getWorkflowInfo(
+  containerId: string,
+  entityTypeName: string,
+  currentStatus?: string,
+  userRole?: string,
+): Promise<{
+  hasWorkflow: boolean
+  name?: string
+  statuses?: string[]
+  transitions?: Array<{ to: string; role?: string; conditions?: string; allowed: boolean; reason?: string }>
+}> {
+  const result = await query<{ statuses: any; transitions: any; name: string }>(
+    'SELECT name, statuses, transitions FROM container_workflows WHERE container_id = $1 AND entity_type = $2 AND is_active = true',
+    [containerId, entityTypeName],
+  )
+
+  if (result.rows.length === 0) {
+    return { hasWorkflow: false }
+  }
+
+  const workflow = result.rows[0]
+  const statuses: string[] = Array.isArray(workflow.statuses) ? workflow.statuses : []
+  const transitions: Array<{ from: string; to: string; role?: string; conditions?: string }> =
+    Array.isArray(workflow.transitions) ? workflow.transitions : []
+
+  if (!currentStatus) {
+    return { hasWorkflow: true, name: workflow.name, statuses }
+  }
+
+  // Get transitions from current status, annotated with role access
+  const hierarchy: Record<string, number> = { viewer: 1, editor: 2, admin: 3 }
+  const userLevel = hierarchy[userRole ?? ''] ?? 0
+
+  const available = transitions
+    .filter(t => t.from === currentStatus)
+    .map(t => {
+      const requiredLevel = hierarchy[t.role ?? ''] ?? 0
+      const allowed = !t.role || userLevel >= requiredLevel
+      return {
+        to: t.to,
+        role: t.role,
+        conditions: t.conditions,
+        allowed,
+        reason: !allowed ? `Requires ${t.role} role` : undefined,
+      }
+    })
+
+  return { hasWorkflow: true, name: workflow.name, statuses, transitions: available }
+}
+
 // ============================================================================
 // 3. Data Schema Validation
 // ============================================================================

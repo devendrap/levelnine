@@ -29,6 +29,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       email: body.email,
       name: body.name,
       role: body.role ?? 'editor',
+      domainRole: body.domain_role,
       invitedBy: auth.userId,
     })
 

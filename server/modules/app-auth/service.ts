@@ -11,6 +11,7 @@ export interface AppAuthPayload {
   userId: string
   email: string
   role: string
+  domainRole: string | null
   containerId: string
   type: 'app'
 }
@@ -20,6 +21,7 @@ function signToken(user: AppUser): string {
     userId: user.id,
     email: user.email,
     role: user.role,
+    domainRole: user.domain_role,
     containerId: user.container_id,
     type: 'app',
   }
@@ -32,7 +34,7 @@ export function verifyAppToken(token: string): AppAuthPayload {
   if (!payload.userId || !payload.email || !payload.role || !payload.containerId) {
     throw new AppAuthError('Malformed app token', 401)
   }
-  return payload as AppAuthPayload
+  return { ...payload, domainRole: payload.domainRole ?? null } as AppAuthPayload
 }
 
 function sanitize(user: AppUser) {
@@ -112,6 +114,7 @@ export async function inviteUser(data: {
   email: string
   name: string
   role: string
+  domainRole?: string
   invitedBy: string
 }) {
   if (!data.email?.trim()) throw new AppAuthError('Email is required', 400)
@@ -130,6 +133,7 @@ export async function inviteUser(data: {
     name: data.name,
     password_hash,
     role: data.role,
+    domain_role: data.domainRole,
     invited_by: data.invitedBy,
   })
 
@@ -138,7 +142,7 @@ export async function inviteUser(data: {
   return { user: sanitize(user) }
 }
 
-export async function updateUser(id: string, data: { role?: string; is_active?: boolean }) {
+export async function updateUser(id: string, data: { role?: string; domain_role?: string; is_active?: boolean }) {
   const user = await repo.update(id, data)
   if (!user) throw new AppAuthError('User not found', 404)
   return sanitize(user)

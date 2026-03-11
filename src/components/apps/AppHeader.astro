@@ -1,4 +1,6 @@
 ---
+import NotificationBellIsland from '../../islands/NotificationBellIsland.tsx'
+
 interface Props {
   appName: string
   slug: string
@@ -55,8 +57,9 @@ const { appName, slug, userName, userRole, breadcrumbs = [] } = Astro.props
     ))}
   </div>
 
-  <!-- Right: user -->
+  <!-- Right: notifications + user -->
   <div class="flex items-center gap-3">
+    <NotificationBellIsland client:only="solid-js" />
     <div class="flex items-center gap-2">
       <div
         class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold"
