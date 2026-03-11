@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro'
 import { optionalAuth, extractAppToken } from '../../../../../server/middleware/auth'
 import { verifyAppToken } from '../../../../../server/modules/app-auth/service'
 import * as service from '../../../../../server/modules/entities/service'
+import { ValidationError } from '../../../../../server/modules/entities/service'
+import * as security from '../../../../../server/modules/security/service'
 
 function requireAnyAuth(request: Request) {
   const platform = optionalAuth(request)
@@ -19,8 +21,17 @@ function requireAnyAuth(request: Request) {
 // GET /api/v1/entities/:id
 export const GET: APIRoute = async ({ params, request }) => {
   try {
-    requireAnyAuth(request)
+    const auth = requireAnyAuth(request)
     const entity = await service.getEntity(params.id!)
+
+    // Apply field-level security masking (C4)
+    if (entity.container_id && entity.entity_type?.name) {
+      const classifications = await security.getClassifications(entity.container_id, entity.entity_type.name)
+      if (classifications.length > 0) {
+        entity.content = security.maskContent(entity.content, classifications, auth.role)
+      }
+    }
+
     return Response.json(entity)
   } catch (err: any) {
     return Response.json({ error: err.message }, { status: err.status ?? 401 })
@@ -41,6 +52,9 @@ export const PUT: APIRoute = async ({ params, request }) => {
     })
     return Response.json(entity)
   } catch (err: any) {
+    if (err instanceof ValidationError) {
+      return Response.json({ error: err.message, errors: err.errors, warnings: err.warnings }, { status: 422 })
+    }
     return Response.json({ error: err.message }, { status: err.status ?? 401 })
   }
 }

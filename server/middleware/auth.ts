@@ -1,6 +1,9 @@
 import { verifyToken, type AuthPayload } from '../modules/auth/service'
 import { verifyAppToken, type AppAuthPayload } from '../modules/app-auth/service'
 
+export type { AuthPayload, AppAuthPayload }
+import { findContainerBySlug } from '../modules/containers/repository'
+
 export function extractToken(request: Request): string | null {
   // Check Authorization header first
   const authHeader = request.headers.get('authorization')
@@ -39,7 +42,7 @@ export function optionalAuth(request: Request): AuthPayload | null {
  * Authenticate app-level users.
  * Also accepts platform admin tokens (they get full access to any app).
  */
-export function authenticateAppUser(request: Request, slug: string): AppAuthPayload {
+export async function authenticateAppUser(request: Request, slug: string): Promise<AppAuthPayload> {
   // First check app_token cookie
   const appToken = extractAppToken(request)
   if (appToken) {
@@ -51,11 +54,14 @@ export function authenticateAppUser(request: Request, slug: string): AppAuthPayl
   const platformToken = extractToken(request)
   if (platformToken) {
     const platform = verifyToken(platformToken)
+    // Resolve actual containerId from slug — never leave it empty
+    const container = await findContainerBySlug(slug)
+    if (!container) throw new Error('App not found')
     return {
       userId: platform.userId,
       email: platform.email,
       role: 'admin',
-      containerId: '', // filled by caller
+      containerId: container.id,
       type: 'app',
     }
   }
@@ -63,9 +69,9 @@ export function authenticateAppUser(request: Request, slug: string): AppAuthPayl
   throw new Error('No token provided')
 }
 
-export function optionalAppAuth(request: Request, slug: string): AppAuthPayload | null {
+export async function optionalAppAuth(request: Request, slug: string): Promise<AppAuthPayload | null> {
   try {
-    return authenticateAppUser(request, slug)
+    return await authenticateAppUser(request, slug)
   } catch {
     return null
   }

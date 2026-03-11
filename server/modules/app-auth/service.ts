@@ -4,9 +4,8 @@ import * as repo from './repository'
 import * as containerRepo from '../containers/repository'
 import type { AppUser } from '../../core/types/index'
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'ai-ui-dev-secret-change-in-prod'
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '24h'
-const SALT_ROUNDS = 4
+import { JWT_SECRET, JWT_EXPIRES_IN } from '../../core/config'
+const SALT_ROUNDS = 10
 
 export interface AppAuthPayload {
   userId: string
@@ -30,6 +29,9 @@ function signToken(user: AppUser): string {
 export function verifyAppToken(token: string): AppAuthPayload {
   const payload = jwt.verify(token, JWT_SECRET) as any
   if (payload.type !== 'app') throw new AppAuthError('Not an app token', 401)
+  if (!payload.userId || !payload.email || !payload.role || !payload.containerId) {
+    throw new AppAuthError('Malformed app token', 401)
+  }
   return payload as AppAuthPayload
 }
 
@@ -54,6 +56,9 @@ export async function register(data: {
   if (!data.email?.trim()) throw new AppAuthError('Email is required', 400)
   if (!data.name?.trim()) throw new AppAuthError('Name is required', 400)
   if (!data.password || data.password.length < 8) throw new AppAuthError('Password must be at least 8 characters', 400)
+  if (!/[A-Z]/.test(data.password) || !/[a-z]/.test(data.password) || !/\d/.test(data.password)) {
+    throw new AppAuthError('Password must contain uppercase, lowercase, and a digit', 400)
+  }
 
   const container = await containerRepo.findContainerBySlug(data.slug)
   if (!container || container.status !== 'launched') throw new AppAuthError('App not found', 404)
@@ -128,7 +133,9 @@ export async function inviteUser(data: {
     invited_by: data.invitedBy,
   })
 
-  return { user: sanitize(user), tempPassword }
+  // TODO: send tempPassword via email (C2 notification engine) instead of API response
+  console.info(`[invite] Temp password for ${data.email}: ${tempPassword}`)
+  return { user: sanitize(user) }
 }
 
 export async function updateUser(id: string, data: { role?: string; is_active?: boolean }) {

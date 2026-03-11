@@ -39,8 +39,12 @@ function evaluateRule(
     case 'cross_field':
       return evaluateCrossFieldRule(rule, expr, content)
     case 'cross_entity':
-      // Cross-entity requires DB lookups — handled separately at service layer
-      return null
+      // Cross-entity validation not yet implemented — return warning so it's visible
+      return {
+        rule_name: rule.rule_name,
+        severity: 'warning' as const,
+        message: `Rule "${rule.rule_name}" uses cross_entity validation which is not yet implemented`,
+      }
     default:
       return null
   }

@@ -121,7 +121,8 @@ export default function ManifestTableIsland(props: {
         for (const line of lines) {
           if (line.startsWith('event: ')) eventType = line.slice(7)
           else if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6))
+            let data: any
+            try { data = JSON.parse(line.slice(6)) } catch { continue }
             if (eventType === 'progress') {
               setCompleted(data.index)
               setResults(prev => [...prev, { name: data.name, success: data.success, error: data.error }])

@@ -7,16 +7,23 @@ export default function SidebarCreateForm() {
   const create = async () => {
     const n = name().trim()
     if (!n) return
-    const res = await fetch('/api/v1/containers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: n }),
-    })
-    if (res.ok) {
-      const c = await res.json()
-      setName('')
-      setCreating(false)
-      window.location.href = `/containers/${c.id}`
+    try {
+      const res = await fetch('/api/v1/containers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: n }),
+      })
+      if (res.ok) {
+        const c = await res.json()
+        setName('')
+        setCreating(false)
+        window.location.href = `/containers/${c.id}`
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed to create container' }))
+        alert(err.error)
+      }
+    } catch {
+      alert('Network error — could not create container')
     }
   }
 

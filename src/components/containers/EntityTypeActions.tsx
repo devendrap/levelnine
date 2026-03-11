@@ -11,15 +11,19 @@ export default function EntityTypeActions(props: {
   const [confirmOpen, setConfirmOpen] = createSignal(false)
 
   const apiCall = async (url: string, method: string, body?: any) => {
-    const res = await fetch(url, {
-      method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    })
-    if (res.ok) window.location.reload()
-    else {
-      const err = await res.json()
-      showToast(err.error)
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      if (res.ok) window.location.reload()
+      else {
+        const err = await res.json().catch(() => ({ error: 'Request failed' }))
+        showToast(err.error)
+      }
+    } catch {
+      showToast('Network error')
     }
   }
 

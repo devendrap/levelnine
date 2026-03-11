@@ -93,6 +93,8 @@ export function FileUpload(props: { label?: string; accept?: string; multiple?: 
 
       {/* Drop zone */}
       <div
+        role="button"
+        aria-label="Upload file"
         class="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 transition-all duration-150"
         style={{
           "border-color": props.disabled ? 'var(--ui-border)' : dragOver() ? 'var(--ui-primary)' : 'var(--ui-border)',

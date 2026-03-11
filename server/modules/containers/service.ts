@@ -215,10 +215,7 @@ export async function chat(
   // Save assistant reply
   await repo.insertMessage({ container_id: containerId, role: 'assistant', content: reply })
 
-  // Try to extract manifest updates from the reply
-  const updatedContainer = await tryExtractManifest(containerId, reply, container)
-
-  return { reply, container: updatedContainer }
+  return { reply, container }
 }
 
 // ============================================================================
@@ -324,19 +321,6 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
   return { container: updated!, results: results.map(r => ({ name: r.name, success: r.success, error: r.error })) }
 }
 
-async function tryExtractManifest(
-  containerId: string,
-  reply: string,
-  current: Container,
-): Promise<Container> {
-  // Look for JSON blocks that might contain entity type definitions
-  const jsonBlocks = reply.match(/```json\n([\s\S]*?)```/g)
-  if (!jsonBlocks) return current
-
-  // For now, just return current — manifest extraction will be refined
-  // as the admin iterates. The admin can explicitly say "apply this"
-  return current
-}
 
 // ============================================================================
 // Lock

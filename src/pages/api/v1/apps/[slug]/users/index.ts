@@ -5,7 +5,7 @@ import * as containerService from '../../../../../../../server/modules/container
 
 export const GET: APIRoute = async ({ params, request }) => {
   try {
-    const auth = authenticateAppUser(request, params.slug!)
+    const auth = await authenticateAppUser(request, params.slug!)
     requireAppRole(auth, 'admin')
 
     const container = await containerService.getContainerBySlug(params.slug!)
@@ -18,13 +18,13 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 export const POST: APIRoute = async ({ params, request }) => {
   try {
-    const auth = authenticateAppUser(request, params.slug!)
+    const auth = await authenticateAppUser(request, params.slug!)
     requireAppRole(auth, 'admin')
 
     const container = await containerService.getContainerBySlug(params.slug!)
     const body = await request.json()
 
-    const { user, tempPassword } = await appAuth.inviteUser({
+    const { user } = await appAuth.inviteUser({
       containerId: container.id,
       email: body.email,
       name: body.name,
@@ -32,7 +32,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       invitedBy: auth.userId,
     })
 
-    return Response.json({ user, tempPassword }, { status: 201 })
+    return Response.json({ user, invited: true }, { status: 201 })
   } catch (err: any) {
     return Response.json({ error: err.message }, { status: err.status ?? 500 })
   }

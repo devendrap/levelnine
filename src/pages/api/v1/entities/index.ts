@@ -3,6 +3,7 @@ import { authenticate, optionalAuth } from '../../../../../server/middleware/aut
 import { extractAppToken } from '../../../../../server/middleware/auth'
 import { verifyAppToken } from '../../../../../server/modules/app-auth/service'
 import * as service from '../../../../../server/modules/entities/service'
+import { ValidationError } from '../../../../../server/modules/entities/service'
 
 /** Accept either platform admin token or app_token */
 function requireAnyAuth(request: Request) {
@@ -60,6 +61,9 @@ export const POST: APIRoute = async ({ request }) => {
     })
     return Response.json(entity, { status: 201 })
   } catch (err: any) {
+    if (err instanceof ValidationError) {
+      return Response.json({ error: err.message, errors: err.errors, warnings: err.warnings }, { status: 422 })
+    }
     return Response.json({ error: err.message }, { status: err.status ?? 401 })
   }
 }

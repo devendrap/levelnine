@@ -118,7 +118,8 @@ export default function ExplorationPanel(props: Props) {
           if (line.startsWith('event: ')) {
             eventType = line.slice(7)
           } else if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6))
+            let data: any
+            try { data = JSON.parse(line.slice(6)) } catch { continue }
             if (eventType === 'chunk') {
               setStreamOutput(prev => prev + data.text)
             } else if (eventType === 'step') {

@@ -4,7 +4,7 @@ import * as appAuth from '../../../../../../../server/modules/app-auth/service'
 
 export const PATCH: APIRoute = async ({ params, request }) => {
   try {
-    const auth = authenticateAppUser(request, params.slug!)
+    const auth = await authenticateAppUser(request, params.slug!)
     requireAppRole(auth, 'admin')
 
     const body = await request.json()
@@ -20,7 +20,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
 export const DELETE: APIRoute = async ({ params, request }) => {
   try {
-    const auth = authenticateAppUser(request, params.slug!)
+    const auth = await authenticateAppUser(request, params.slug!)
     requireAppRole(auth, 'admin')
 
     await appAuth.removeUser(params.id!)

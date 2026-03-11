@@ -3,9 +3,8 @@ import jwt from 'jsonwebtoken'
 import * as repo from './repository'
 import type { User } from '../../core/types/index'
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'ai-ui-dev-secret-change-in-prod'
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '24h'
-const SALT_ROUNDS = 4
+import { JWT_SECRET, JWT_EXPIRES_IN } from '../../core/config'
+const SALT_ROUNDS = 10
 
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS)
@@ -27,7 +26,11 @@ function signToken(user: User): string {
 }
 
 export function verifyToken(token: string): AuthPayload {
-  return jwt.verify(token, JWT_SECRET) as AuthPayload
+  const payload = jwt.verify(token, JWT_SECRET) as any
+  if (!payload.userId || !payload.email || !payload.role) {
+    throw new AuthError('Malformed token', 401)
+  }
+  return payload as AuthPayload
 }
 
 function sanitizeUser(user: User) {
@@ -44,6 +47,9 @@ export async function register(data: {
   if (!data.email?.trim()) throw new AuthError('Email is required', 400)
   if (!data.name?.trim()) throw new AuthError('Name is required', 400)
   if (!data.password || data.password.length < 8) throw new AuthError('Password must be at least 8 characters', 400)
+  if (!/[A-Z]/.test(data.password) || !/[a-z]/.test(data.password) || !/\d/.test(data.password)) {
+    throw new AuthError('Password must contain uppercase, lowercase, and a digit', 400)
+  }
 
   const existing = await repo.findUserByEmail(data.email)
   if (existing) throw new AuthError('Email already registered', 409)

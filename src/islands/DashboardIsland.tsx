@@ -58,7 +58,7 @@ export default function DashboardIsland() {
   const [user, setUser] = createSignal<any>(null)
 
   // Try fetching current user
-  fetch('/api/v1/auth/me').then(r => r.ok ? r.json() : null).then(d => d && setUser(d.user))
+  fetch('/api/v1/auth/me').then(r => r.ok ? r.json() : null).then(d => d && setUser(d.user)).catch(() => {})
 
   const typeNameMap = () => {
     const m = new Map<string, string>()

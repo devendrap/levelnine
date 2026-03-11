@@ -78,6 +78,33 @@ export async function findEntityById(id: string): Promise<Entity | null> {
   return result.rows[0] ?? null
 }
 
+export async function findEntityWithTypeById(id: string): Promise<(Entity & { entity_type?: EntityType }) | null> {
+  const result = await query<any>(
+    `SELECT e.*, et.name as et_name, et.description as et_description,
+            et.schema as et_schema, et.is_active as et_is_active,
+            et.container_id as et_container_id
+     FROM entities e
+     LEFT JOIN entity_types et ON et.id = e.entity_type_id
+     WHERE e.id = $1`,
+    [id],
+  )
+  const row = result.rows[0]
+  if (!row) return null
+
+  const entity_type: EntityType | undefined = row.et_name ? {
+    id: row.entity_type_id,
+    name: row.et_name,
+    description: row.et_description,
+    schema: row.et_schema,
+    container_id: row.et_container_id,
+    is_active: row.et_is_active,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  } : undefined
+
+  return { ...row, entity_type }
+}
+
 export async function findEntitiesPaginated(filters: {
   entity_type_id?: string
   entity_type_name?: string

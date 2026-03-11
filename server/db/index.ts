@@ -1,21 +1,12 @@
 import pg from 'pg'
-
-// Validate required env vars in production
-if (process.env.NODE_ENV === 'production') {
-  const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'JWT_SECRET']
-  const missing = required.filter(k => !process.env[k])
-  if (missing.length > 0) {
-    console.error(`[db] Missing required env vars: ${missing.join(', ')}`)
-    process.exit(1)
-  }
-}
+import { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME } from 'astro:env/server'
 
 const pool = new pg.Pool({
-  host: process.env.DB_HOST ?? 'localhost',
-  port: Number(process.env.DB_PORT ?? 5433),
-  user: process.env.DB_USER ?? 'aiui',
-  password: process.env.DB_PASSWORD ?? 'aiui_dev',
-  database: process.env.DB_NAME ?? 'aiui',
+  host: DB_HOST,
+  port: DB_PORT,
+  user: DB_USER,
+  password: DB_PASSWORD,
+  database: DB_NAME,
   max: 20,
   idleTimeoutMillis: 30000,
 })

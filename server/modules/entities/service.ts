@@ -1,5 +1,7 @@
 import * as repo from './repository'
 import type { Entity, EntityType, PaginatedResult } from '../../core/types/index'
+import { validate, type ValidationResult } from '../validation/engine'
+import { triggerNotifications } from '../notifications/trigger'
 
 // ============================================================================
 // Entity Types
@@ -47,11 +49,9 @@ export async function updateEntityType(
 // ============================================================================
 
 export async function getEntity(id: string): Promise<Entity & { entity_type?: EntityType }> {
-  const entity = await repo.findEntityById(id)
+  const entity = await repo.findEntityWithTypeById(id)
   if (!entity) throw new ServiceError('Entity not found', 404)
-
-  const entityType = await repo.findEntityTypeById(entity.entity_type_id)
-  return { ...entity, entity_type: entityType ?? undefined }
+  return entity
 }
 
 export async function listEntities(filters: {
@@ -92,21 +92,50 @@ export async function createEntity(data: {
   }
   if (!typeId) throw new ServiceError('entity_type_id or entity_type_name is required', 400)
 
-  // Check duplicate name within same type
-  const existing = await repo.findEntitiesPaginated({ entity_type_id: typeId, pageSize: 1000 })
-  if (existing.data.some(e => e.name === data.name)) {
-    throw new ServiceError(`Entity "${data.name}" already exists for this type`, 409)
+  // Run validation rules (C3)
+  if (data.container_id && data.content) {
+    const et = await repo.findEntityTypeById(typeId)
+    if (et) {
+      const violations = await validate(data.container_id, et.name, data.content)
+      const errors = violations.filter(v => v.severity === 'error')
+      if (errors.length > 0) {
+        throw new ValidationError('Validation failed', errors, violations.filter(v => v.severity === 'warning'))
+      }
+    }
   }
 
-  return repo.insertEntity({
-    entity_type_id: typeId,
-    container_id: data.container_id,
-    name: data.name,
-    content: data.content,
-    metadata: data.metadata,
-    period: data.period,
-    created_by_user_id: data.created_by_user_id,
-  })
+  let entity: Entity
+  try {
+    entity = await repo.insertEntity({
+      entity_type_id: typeId,
+      container_id: data.container_id,
+      name: data.name,
+      content: data.content,
+      metadata: data.metadata,
+      period: data.period,
+      created_by_user_id: data.created_by_user_id,
+    })
+  } catch (err: any) {
+    if (err.code === '23505') throw new ServiceError(`Entity "${data.name}" already exists for this type`, 409)
+    throw err
+  }
+
+  // Fire D9 notification rules (async, don't block response)
+  if (data.container_id) {
+    const et = await repo.findEntityTypeById(typeId)
+    if (et) {
+      triggerNotifications({
+        container_id: data.container_id,
+        entity_id: entity.id,
+        entity_type: et.name,
+        entity_name: entity.name,
+        action: 'create',
+        new_values: data.content,
+      }).catch(e => console.error('[notify]', e.message))
+    }
+  }
+
+  return entity
 }
 
 export async function updateEntity(
@@ -120,8 +149,46 @@ export async function updateEntity(
     last_modified_by_user_id?: string
   },
 ): Promise<Entity> {
+  // Run validation rules on content changes (C3)
+  if (data.content) {
+    const existing = await repo.findEntityById(id)
+    if (existing?.container_id) {
+      const et = await repo.findEntityTypeById(existing.entity_type_id)
+      if (et) {
+        const violations = await validate(existing.container_id, et.name, data.content)
+        const errors = violations.filter(v => v.severity === 'error')
+        if (errors.length > 0) {
+          throw new ValidationError('Validation failed', errors, violations.filter(v => v.severity === 'warning'))
+        }
+      }
+    }
+  }
+
+  // Fetch pre-update state for status change detection
+  const preUpdate = data.content ? null : await repo.findEntityById(id)
+
   const entity = await repo.updateEntity(id, data)
   if (!entity) throw new ServiceError('Entity not found', 404)
+
+  // Fire D9 notification rules (async, don't block response)
+  if (entity.container_id) {
+    const et = await repo.findEntityTypeById(entity.entity_type_id)
+    if (et) {
+      const action = (data.status && preUpdate && preUpdate.status !== data.status)
+        ? 'status_change' as const
+        : 'update' as const
+      triggerNotifications({
+        container_id: entity.container_id,
+        entity_id: entity.id,
+        entity_type: et.name,
+        entity_name: entity.name,
+        action,
+        field_changes: data.content ?? {},
+        new_values: { ...entity.content, status: entity.status },
+      }).catch(e => console.error('[notify]', e.message))
+    }
+  }
+
   return entity
 }
 
@@ -141,5 +208,16 @@ export class ServiceError extends Error {
   ) {
     super(message)
     this.name = 'ServiceError'
+  }
+}
+
+export class ValidationError extends ServiceError {
+  constructor(
+    message: string,
+    public errors: ValidationResult[],
+    public warnings: ValidationResult[],
+  ) {
+    super(message, 422)
+    this.name = 'ValidationError'
   }
 }

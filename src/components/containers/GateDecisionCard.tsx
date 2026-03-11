@@ -1,6 +1,7 @@
 import { createSignal, Show } from 'solid-js'
 import type { GateDecision } from '../../lib/containers/types'
 import { showToast } from './Toast'
+import { clean } from '../../lib/sanitize'
 
 interface Props {
   stepId: string
@@ -68,7 +69,7 @@ export default function GateDecisionCard(props: Props) {
             border: '1px solid var(--ui-border)',
             'white-space': 'pre-wrap',
           }}
-          innerHTML={props.gateOutput}
+          innerHTML={clean(props.gateOutput)}
         />
       </Show>
 

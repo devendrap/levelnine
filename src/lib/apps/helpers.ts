@@ -30,9 +30,7 @@ export async function loadAppContext(Astro: any): Promise<AppContext | Response>
 
   let user: AppAuthPayload
   try {
-    user = authenticateAppUser(Astro.request, slug)
-    // If platform admin, fill in containerId
-    if (!user.containerId) user.containerId = container.id
+    user = await authenticateAppUser(Astro.request, slug)
   } catch {
     return Astro.redirect(`/apps/${slug}/login`)
   }

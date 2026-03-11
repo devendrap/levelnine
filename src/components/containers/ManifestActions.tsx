@@ -56,12 +56,14 @@ export default function ManifestActions(props: {
           if (line.startsWith('event: ')) {
             eventType = line.slice(7)
           } else if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6))
+            let data: any
+            try { data = JSON.parse(line.slice(6)) } catch { continue }
             if (eventType === 'progress') {
               setCompleted(data.index)
               setResults(prev => [...prev, { name: data.name, success: data.success, error: data.error }])
             } else if (eventType === 'done') {
-              setTimeout(() => window.location.reload(), 1500)
+              setGenerating(false)
+              window.location.reload()
             } else if (eventType === 'error') {
               setResults(prev => [...prev, { name: 'error', success: false, error: data.error }])
               setGenerating(false)

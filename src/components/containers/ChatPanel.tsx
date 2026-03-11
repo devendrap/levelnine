@@ -3,6 +3,7 @@ import { SchemaPreviewPanel } from '../SchemaPreviewPanel'
 import { parseMessageSegments, parseEntityTypesFromMessage } from '../../lib/containers/parser'
 import type { Message, MessageSegment } from '../../lib/containers/types'
 import Toast, { showToast } from './Toast'
+import { clean } from '../../lib/sanitize'
 
 export default function ChatPanel(props: {
   containerId: string
@@ -217,7 +218,7 @@ export default function ChatPanel(props: {
                       {(seg) => (
                         <>
                           <Show when={seg.kind === 'html'}>
-                            <div innerHTML={(seg as any).html} />
+                            <div innerHTML={clean((seg as any).html)} />
                           </Show>
                           <Show when={seg.kind === 'schema'}>
                             <div class="my-3">
@@ -414,6 +415,7 @@ export default function ChatPanel(props: {
                 <button
                   onClick={() => sendMessage()}
                   disabled={sending() || !input().trim()}
+                  aria-label="Send message"
                   class="flex items-center gap-2 rounded-xl cursor-pointer transition-all disabled:opacity-20"
                   style={{
                     padding: input().trim() ? "6px 16px" : "6px 10px",

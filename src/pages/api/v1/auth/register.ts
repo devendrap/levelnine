@@ -1,8 +1,12 @@
 import type { APIRoute } from 'astro'
 import { register } from '../../../../../server/modules/auth/service'
+import { isRateLimited, getClientIP } from '../../../../../server/middleware/rateLimit'
 
 export const POST: APIRoute = async ({ request }) => {
   try {
+    if (isRateLimited(getClientIP(request))) {
+      return Response.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
+    }
     const body = await request.json()
     const { user, token } = await register(body)
 
@@ -10,7 +14,7 @@ export const POST: APIRoute = async ({ request }) => {
       status: 201,
       headers: {
         'Content-Type': 'application/json',
-        'Set-Cookie': `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${import.meta.env.PROD ? '; Secure' : ''}`,
+        'Set-Cookie': `token=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400${import.meta.env.PROD ? '; Secure' : ''}`,
       },
     })
   } catch (err: any) {
