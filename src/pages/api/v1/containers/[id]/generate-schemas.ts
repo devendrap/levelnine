@@ -14,6 +14,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const provider = body.provider ?? 'ollama'
   const model = body.model
   const concurrency = body.concurrency ?? 5
+  const force = body.force === true
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -32,6 +33,7 @@ export const POST: APIRoute = async ({ params, request }) => {
           model,
           concurrency,
           onProgress,
+          force,
         )
 
         const succeeded = results.filter(r => r.success).length

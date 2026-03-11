@@ -157,6 +157,11 @@ export async function executeNextStep(
       if (currentStep === 'generate' || currentStep === 'self_review') {
         await mergeIntoManifest(container.id, currentDim.dimension, parsed, manifest)
       }
+
+      // Consolidation: also merge during gaps step (removals may come from gap analysis)
+      if (currentStep === 'gaps' && currentDim.dimension === 'consolidation' && parsed) {
+        await mergeIntoManifest(container.id, currentDim.dimension, parsed, manifest)
+      }
     }
 
     const updatedStep = await repo.updateStep(step.id, stepUpdate)
@@ -178,6 +183,185 @@ export async function executeNextStep(
 }
 
 // ============================================================================
+// Cross-Dimension Validation (Step 8)
+// ============================================================================
+
+export interface ValidationWarning {
+  type: 'phantom_type' | 'missing_workflow_target' | 'dangling_relation' | 'missing_document_target' | 'missing_report_source'
+  message: string
+  source: string
+  referenced_type: string
+}
+
+export function validateManifestCrossReferences(manifest: ContainerManifest): ValidationWarning[] {
+  const warnings: ValidationWarning[] = []
+  const typeNames = new Set((manifest.entity_types ?? []).map(et => et.name))
+
+  // Validate role restricted_entity_types reference real types
+  for (const role of manifest.roles ?? []) {
+    for (const restriction of role.restricted_entity_types ?? []) {
+      const typeName = typeof restriction === 'string' ? restriction : restriction.type
+      if (!typeNames.has(typeName)) {
+        warnings.push({
+          type: 'phantom_type',
+          message: `Role "${role.name}" restricts access to non-existent type "${typeName}"`,
+          source: `roles.${role.name}`,
+          referenced_type: typeName,
+        })
+      }
+    }
+  }
+
+  // Validate workflow entity_type references exist
+  for (const wf of manifest.workflows ?? []) {
+    if (!typeNames.has(wf.entity_type)) {
+      warnings.push({
+        type: 'missing_workflow_target',
+        message: `Workflow "${wf.name}" targets non-existent type "${wf.entity_type}"`,
+        source: `workflows.${wf.name}`,
+        referenced_type: wf.entity_type,
+      })
+    }
+  }
+
+  // Validate relation source/target types exist
+  for (const rel of manifest.relations ?? []) {
+    if (!typeNames.has(rel.source_type)) {
+      warnings.push({
+        type: 'dangling_relation',
+        message: `Relation "${rel.source_type} → ${rel.target_type}" references non-existent source type "${rel.source_type}"`,
+        source: `relations`,
+        referenced_type: rel.source_type,
+      })
+    }
+    if (!typeNames.has(rel.target_type)) {
+      warnings.push({
+        type: 'dangling_relation',
+        message: `Relation "${rel.source_type} → ${rel.target_type}" references non-existent target type "${rel.target_type}"`,
+        source: `relations`,
+        referenced_type: rel.target_type,
+      })
+    }
+  }
+
+  // Validate document entity_type references exist
+  for (const doc of manifest.documents ?? []) {
+    if (doc.entity_type && !typeNames.has(doc.entity_type)) {
+      warnings.push({
+        type: 'missing_document_target',
+        message: `Document "${doc.name}" references non-existent type "${doc.entity_type}"`,
+        source: `documents.${doc.name}`,
+        referenced_type: doc.entity_type,
+      })
+    }
+  }
+
+  // Validate report entity_types references exist
+  for (const report of manifest.reports ?? []) {
+    for (const et of report.entity_types ?? []) {
+      if (!typeNames.has(et)) {
+        warnings.push({
+          type: 'missing_report_source',
+          message: `Report "${report.name}" references non-existent data source type "${et}"`,
+          source: `reports.${report.name}`,
+          referenced_type: et,
+        })
+      }
+    }
+  }
+
+  // Validate compliance entity_types references exist
+  for (const c of manifest.compliance ?? []) {
+    for (const et of c.entity_types ?? []) {
+      if (!typeNames.has(et)) {
+        warnings.push({
+          type: 'phantom_type',
+          message: `Compliance "${c.name}" references non-existent type "${et}"`,
+          source: `compliance.${c.name}`,
+          referenced_type: et,
+        })
+      }
+    }
+  }
+
+  // Validate integration entity_types references exist
+  for (const i of manifest.integrations ?? []) {
+    for (const et of i.entity_types ?? []) {
+      if (!typeNames.has(et)) {
+        warnings.push({
+          type: 'phantom_type',
+          message: `Integration "${i.name}" references non-existent type "${et}"`,
+          source: `integrations.${i.name}`,
+          referenced_type: et,
+        })
+      }
+    }
+  }
+
+  // Validate notification trigger_entity_type references exist
+  for (const n of manifest.notifications ?? []) {
+    if (n.trigger_entity_type && !typeNames.has(n.trigger_entity_type)) {
+      warnings.push({
+        type: 'phantom_type',
+        message: `Notification "${n.name}" triggers on non-existent type "${n.trigger_entity_type}"`,
+        source: `notifications.${n.name}`,
+        referenced_type: n.trigger_entity_type,
+      })
+    }
+  }
+
+  // Validate ui_config entity_type references exist
+  for (const u of manifest.ui_configs ?? []) {
+    if (u.entity_type && !typeNames.has(u.entity_type)) {
+      warnings.push({
+        type: 'phantom_type',
+        message: `UI config "${u.name}" targets non-existent type "${u.entity_type}"`,
+        source: `ui_configs.${u.name}`,
+        referenced_type: u.entity_type,
+      })
+    }
+  }
+
+  // Detect orphan types — entity types with zero relations, documents, reports, or workflows referencing them
+  const referencedTypes = new Set<string>()
+  for (const r of manifest.relations ?? []) {
+    referencedTypes.add(r.source_type)
+    referencedTypes.add(r.target_type)
+  }
+  for (const d of manifest.documents ?? []) {
+    if (d.entity_type) referencedTypes.add(d.entity_type)
+  }
+  for (const r of manifest.reports ?? []) {
+    for (const et of r.entity_types ?? []) referencedTypes.add(et)
+  }
+  for (const wf of manifest.workflows ?? []) {
+    referencedTypes.add(wf.entity_type)
+  }
+  for (const c of manifest.compliance ?? []) {
+    for (const et of c.entity_types ?? []) referencedTypes.add(et)
+  }
+  for (const n of manifest.notifications ?? []) {
+    if (n.trigger_entity_type) referencedTypes.add(n.trigger_entity_type)
+  }
+  for (const u of manifest.ui_configs ?? []) {
+    if (u.entity_type) referencedTypes.add(u.entity_type)
+  }
+
+  for (const typeName of typeNames) {
+    if (!referencedTypes.has(typeName)) {
+      warnings.push({
+        type: 'orphan_type',
+        message: `Entity type "${typeName}" has no relations, workflows, documents, or reports referencing it`,
+        source: `entity_types.${typeName}`,
+        referenced_type: typeName,
+      })
+    }
+  }
+
+  return warnings
+}
+
+// ============================================================================
 // Gate Decision
 // ============================================================================
 
@@ -185,7 +369,7 @@ export async function submitGateDecision(
   stepId: string,
   decision: GateDecision,
   notes?: string,
-): Promise<{ run: ExplorationRun; isDone: boolean }> {
+): Promise<{ run: ExplorationRun; isDone: boolean; warnings?: ValidationWarning[] }> {
   const step = await repo.findStepById(stepId)
   if (!step) throw new ExplorationError('Step not found', 404)
   if (step.step !== 'gate') throw new ExplorationError('Not a gate step', 400)
@@ -207,40 +391,39 @@ export async function submitGateDecision(
     })
   }
 
+  // Cross-dimension validation — report phantom types and dangling references
+  const manifest = (container?.manifest ?? {}) as ContainerManifest
+  const warnings = validateManifestCrossReferences(manifest)
+
   const dimensions = await repo.findAllDimensions()
   const currentIdx = dimensions.findIndex(d => d.dimension === step.dimension)
 
   if (decision === 'stop') {
-    // Materialize what we have for this dimension before stopping
     if (container) {
-      await materializeDimension(run.container_id, step.dimension, container.manifest as ContainerManifest)
+      await materializeDimension(run.container_id, step.dimension, manifest)
     }
     await repo.updateRun(run.id, { status: 'paused', current_step: null })
-    return { run: (await repo.findRunById(run.id))!, isDone: true }
+    return { run: (await repo.findRunById(run.id))!, isDone: true, warnings }
   }
 
   if (decision === 'go_deeper') {
-    // Re-run this dimension from generate — don't materialize yet
     await repo.updateRun(run.id, { current_step: 'generate' })
-    return { run: (await repo.findRunById(run.id))!, isDone: false }
+    return { run: (await repo.findRunById(run.id))!, isDone: false, warnings }
   }
 
   if (decision === 'skip' || decision === 'continue') {
-    // Gate approved — materialize this dimension's artifacts into DB rows
     if (container) {
-      await materializeDimension(run.container_id, step.dimension, container.manifest as ContainerManifest)
+      await materializeDimension(run.container_id, step.dimension, manifest)
     }
 
-    // Move to next dimension
     const nextIdx = currentIdx + 1
     if (nextIdx < dimensions.length) {
       await repo.updateRun(run.id, {
         current_dimension: dimensions[nextIdx].dimension,
         current_step: 'generate',
       })
-      return { run: (await repo.findRunById(run.id))!, isDone: false }
+      return { run: (await repo.findRunById(run.id))!, isDone: false, warnings }
     } else {
-      // All dimensions done — check phase
       if (run.phase === 'first_pass') {
         await repo.updateRun(run.id, {
           phase: 'holistic_review',
@@ -248,14 +431,14 @@ export async function submitGateDecision(
           current_step: null,
           status: 'completed',
         })
-        return { run: (await repo.findRunById(run.id))!, isDone: true }
+        return { run: (await repo.findRunById(run.id))!, isDone: true, warnings }
       }
       await repo.updateRun(run.id, { status: 'completed', current_step: null })
-      return { run: (await repo.findRunById(run.id))!, isDone: true }
+      return { run: (await repo.findRunById(run.id))!, isDone: true, warnings }
     }
   }
 
-  return { run: (await repo.findRunById(run.id))!, isDone: false }
+  return { run: (await repo.findRunById(run.id))!, isDone: false, warnings }
 }
 
 // ============================================================================
@@ -342,6 +525,16 @@ async function mergeIntoManifest(
   manifest.edge_cases = [...(manifest.edge_cases ?? [])]
   manifest.scope = [...(manifest.scope ?? [])]
   manifest.out_of_scope = [...(manifest.out_of_scope ?? [])]
+
+  // Consolidation: remove entity types
+  if (parsed.entity_types_removed?.length) {
+    const removedNames = new Set(parsed.entity_types_removed.map((r: any) => r.name))
+    manifest.entity_types = manifest.entity_types.filter(et => !removedNames.has(et.name))
+    // Also remove relations that reference removed types
+    manifest.relations = manifest.relations.filter(
+      r => !removedNames.has(r.source_type) && !removedNames.has(r.target_type),
+    )
+  }
 
   // Add new entity types
   if (parsed.entity_types_added?.length) {
@@ -489,15 +682,50 @@ async function materializeDimension(
   manifest: ContainerManifest,
 ): Promise<void> {
   await transaction(async (client) => {
+    // Consolidation: remove entity types that were merged/absorbed
+    if (dimension === 'consolidation') {
+      // Find entity types that existed before but are no longer in manifest (they were removed during consolidation)
+      const existingTypes = await client.query(
+        'SELECT name FROM entity_types WHERE container_id = $1',
+        [containerId],
+      )
+      const manifestTypeNames = new Set((manifest.entity_types ?? []).map(et => et.name))
+      for (const row of existingTypes.rows) {
+        if (!manifestTypeNames.has(row.name)) {
+          await client.query(
+            'DELETE FROM entity_types WHERE container_id = $1 AND name = $2',
+            [containerId, row.name],
+          )
+          // Also clean up relations referencing removed types
+          await client.query(
+            'DELETE FROM container_relations WHERE container_id = $1 AND (source_type = $2 OR target_type = $2)',
+            [containerId, row.name],
+          )
+        }
+      }
+    }
+
     // Entity types — insert/upsert those from this dimension
     const dimEntityTypes = (manifest.entity_types ?? []).filter(et => et.source_dimension === dimension)
     for (const et of dimEntityTypes) {
       await client.query(
-        `INSERT INTO entity_types (name, description, schema, container_id)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO entity_types (name, description, schema, data_schema, field_metadata, related_types, document_slots, report_relevance, container_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (name, COALESCE(container_id, '00000000-0000-0000-0000-000000000000')) DO UPDATE SET
-           description = EXCLUDED.description, schema = EXCLUDED.schema, updated_at = NOW()`,
-        [et.name, et.description, et.schema ? JSON.stringify(et.schema) : null, containerId],
+           description = EXCLUDED.description, schema = EXCLUDED.schema,
+           data_schema = EXCLUDED.data_schema, field_metadata = EXCLUDED.field_metadata,
+           related_types = EXCLUDED.related_types, document_slots = EXCLUDED.document_slots,
+           report_relevance = EXCLUDED.report_relevance, updated_at = NOW()`,
+        [
+          et.name, et.description,
+          et.schema ? JSON.stringify(et.schema) : null,
+          et.data_schema ? JSON.stringify(et.data_schema) : null,
+          et.field_metadata ? JSON.stringify(et.field_metadata) : null,
+          et.related_types ? JSON.stringify(et.related_types) : null,
+          et.document_slots ? JSON.stringify(et.document_slots) : null,
+          et.report_relevance ? JSON.stringify(et.report_relevance) : null,
+          containerId,
+        ],
       )
     }
 
@@ -517,12 +745,12 @@ async function materializeDimension(
     const dimRoles = (manifest.roles ?? []).filter(r => r.source_dimension === dimension)
     for (const role of dimRoles) {
       await client.query(
-        `INSERT INTO container_roles (container_id, name, label, description, permissions, can_access_entity_types, source_dimension)
+        `INSERT INTO container_roles (container_id, name, label, description, permissions, restricted_entity_types, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
-           permissions = EXCLUDED.permissions, can_access_entity_types = EXCLUDED.can_access_entity_types`,
-        [containerId, role.name, role.label, role.description, JSON.stringify(role.permissions), JSON.stringify(role.can_access_entity_types), dimension],
+           permissions = EXCLUDED.permissions, restricted_entity_types = EXCLUDED.restricted_entity_types`,
+        [containerId, role.name, role.label, role.description, JSON.stringify(role.permissions), JSON.stringify(role.restricted_entity_types), dimension],
       )
     }
 

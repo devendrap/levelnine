@@ -14,6 +14,11 @@ export interface EntityType {
   name: string
   description: string | null
   schema: Record<string, any> | null
+  data_schema: Record<string, any> | null
+  field_metadata: Record<string, { default?: any; searchable?: boolean; sortable?: boolean; show_in_list?: boolean }> | null
+  related_types: Array<{ type: string; relation: string; display: string }> | null
+  document_slots: string[] | null
+  report_relevance: string[] | null
   container_id: string | null
   is_active: boolean
   created_at: Date
@@ -65,6 +70,11 @@ export interface ContainerManifest {
     description: string
     schema: Record<string, any> | null
     key_fields?: string[]
+    data_schema?: Record<string, any> | null
+    field_metadata?: Record<string, { default?: any; searchable?: boolean; sortable?: boolean; show_in_list?: boolean }> | null
+    related_types?: Array<{ type: string; relation: string; display: string }> | null
+    document_slots?: string[] | null
+    report_relevance?: string[] | null
     reviewed?: boolean
     source_dimension?: string
   }>
@@ -80,7 +90,7 @@ export interface ContainerManifest {
     label: string
     description: string
     permissions: string[]
-    can_access_entity_types: string[]
+    restricted_entity_types: Array<{ type: string; justification: string }>
     source_dimension?: string
   }>
   workflows?: Array<{

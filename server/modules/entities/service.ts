@@ -2,6 +2,7 @@ import * as repo from './repository'
 import type { Entity, EntityType, PaginatedResult } from '../../core/types/index'
 import { validate, type ValidationResult } from '../validation/engine'
 import { triggerNotifications } from '../notifications/trigger'
+import { checkWorkflowTransition, validateDataSchema } from '../runtime/enforcement'
 
 // ============================================================================
 // Entity Types
@@ -101,6 +102,22 @@ export async function createEntity(data: {
       if (errors.length > 0) {
         throw new ValidationError('Validation failed', errors, violations.filter(v => v.severity === 'warning'))
       }
+
+      // Validate against data_schema (Step 7)
+      if (et.data_schema) {
+        const dataResult = validateDataSchema(data.content, et.data_schema)
+        if (!dataResult.valid) {
+          const schemaErrors = dataResult.errors.map(e => ({
+            rule_id: 'data_schema',
+            rule_name: 'Data Schema',
+            entity_type: et.name,
+            field: e.field,
+            message: e.message,
+            severity: 'error' as const,
+          }))
+          throw new ValidationError('Data schema validation failed', schemaErrors, [])
+        }
+      }
     }
   }
 
@@ -147,25 +164,55 @@ export async function updateEntity(
     metadata?: Record<string, any>
     period?: string | null
     last_modified_by_user_id?: string
+    user_role?: string
   },
 ): Promise<Entity> {
+  const existing = await repo.findEntityById(id)
+  if (!existing) throw new ServiceError('Entity not found', 404)
+
+  const et = existing.container_id ? await repo.findEntityTypeById(existing.entity_type_id) : null
+
+  // Workflow enforcement — validate status transitions (Step 7)
+  if (data.status && data.status !== existing.status && existing.container_id && et) {
+    const transitionCheck = await checkWorkflowTransition(
+      existing.container_id,
+      et.name,
+      existing.status,
+      data.status,
+      data.user_role,
+    )
+    if (!transitionCheck.allowed) {
+      throw new ServiceError(transitionCheck.reason ?? 'Status transition not allowed', 403)
+    }
+  }
+
   // Run validation rules on content changes (C3)
-  if (data.content) {
-    const existing = await repo.findEntityById(id)
-    if (existing?.container_id) {
-      const et = await repo.findEntityTypeById(existing.entity_type_id)
-      if (et) {
-        const violations = await validate(existing.container_id, et.name, data.content)
-        const errors = violations.filter(v => v.severity === 'error')
-        if (errors.length > 0) {
-          throw new ValidationError('Validation failed', errors, violations.filter(v => v.severity === 'warning'))
-        }
+  if (data.content && existing.container_id && et) {
+    const violations = await validate(existing.container_id, et.name, data.content)
+    const errors = violations.filter(v => v.severity === 'error')
+    if (errors.length > 0) {
+      throw new ValidationError('Validation failed', errors, violations.filter(v => v.severity === 'warning'))
+    }
+
+    // Validate against data_schema (Step 7)
+    if (et.data_schema) {
+      const dataResult = validateDataSchema(data.content, et.data_schema)
+      if (!dataResult.valid) {
+        const schemaErrors = dataResult.errors.map(e => ({
+          rule_id: 'data_schema',
+          rule_name: 'Data Schema',
+          entity_type: et.name,
+          field: e.field,
+          message: e.message,
+          severity: 'error' as const,
+        }))
+        throw new ValidationError('Data schema validation failed', schemaErrors, [])
       }
     }
   }
 
-  // Fetch pre-update state for status change detection
-  const preUpdate = data.content ? null : await repo.findEntityById(id)
+  // preUpdate already fetched above
+  const preUpdate = existing
 
   const entity = await repo.updateEntity(id, data)
   if (!entity) throw new ServiceError('Entity not found', 404)

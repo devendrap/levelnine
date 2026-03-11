@@ -31,6 +31,11 @@ export interface EntityTypeDef {
   description: string
   schema: Record<string, any> | null
   key_fields?: string[]
+  data_schema?: Record<string, any> | null
+  field_metadata?: Record<string, { default?: any; searchable?: boolean; sortable?: boolean; show_in_list?: boolean }> | null
+  related_types?: Array<{ type: string; relation: string; display: string }> | null
+  document_slots?: string[] | null
+  report_relevance?: string[] | null
   reviewed?: boolean
   source_dimension?: string
 }
@@ -48,7 +53,7 @@ export interface RoleDef {
   label: string
   description: string
   permissions: string[]
-  can_access_entity_types: string[]
+  restricted_entity_types: Array<{ type: string; justification: string }>
   source_dimension?: string
 }
 

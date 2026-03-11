@@ -4,6 +4,7 @@ import { extractAppToken } from '../../../../../server/middleware/auth'
 import { verifyAppToken } from '../../../../../server/modules/app-auth/service'
 import * as service from '../../../../../server/modules/entities/service'
 import { ValidationError } from '../../../../../server/modules/entities/service'
+import { checkRoleAccess } from '../../../../../server/modules/runtime/enforcement'
 
 /** Accept either platform admin token or app_token */
 function requireAnyAuth(request: Request) {
@@ -53,6 +54,14 @@ export const POST: APIRoute = async ({ request }) => {
     // Viewers cannot create
     if (auth.role === 'viewer') {
       return Response.json({ error: 'Viewers cannot create entities' }, { status: 403 })
+    }
+
+    // Role-based entity type access check (Step 7)
+    if (auth.type === 'app' && auth.containerId && body.entity_type_name) {
+      const access = await checkRoleAccess(auth.containerId, auth.role, body.entity_type_name)
+      if (!access.allowed) {
+        return Response.json({ error: access.reason }, { status: 403 })
+      }
     }
 
     const entity = await service.createEntity({

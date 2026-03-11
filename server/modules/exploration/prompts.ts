@@ -3,7 +3,9 @@ import type { ContainerManifest, DimensionConfig } from '../../core/types/index'
 // Dimension-specific artifact schemas for the output format
 const DIMENSION_ARTIFACTS: Record<string, string> = {
   structure: '',  // D1 uses only entity_types + relations (base fields)
-  roles: `  "roles_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "permissions": ["action:resource"], "can_access_entity_types": ["entity_name"]}],`,
+  consolidation: `  "entity_types_removed": [{"name": "type_to_remove", "reason": "enum merged into parent_type.field_name", "absorbed_by": "parent_type"}],
+  "merges_applied": [{"source": "type_a_removed", "target": "type_b_kept", "strategy": "combined fields, added source enum field"}],`,
+  roles: `  "roles_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "permissions": ["action:resource"], "restricted_entity_types": [{"type": "entity_name", "justification": "business reason for restriction"}]}],`,
   workflows: `  "workflows_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "entity_type": "which_entity", "statuses": ["draft","active","complete"], "transitions": [{"from": "draft", "to": "active", "role": "role_name", "conditions": "optional"}]}],`,
   compliance: `  "compliance_added": [{"name": "snake_case", "standard": "PCAOB AS 2201", "description": "...", "entity_types": ["affected_types"], "checkpoints": ["what must be verified"]}],`,
   documents: `  "documents_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "entity_type": "optional_owner", "format": "pdf", "retention_days": 365}],`,
@@ -178,7 +180,10 @@ function buildManifestSummary(manifest: ContainerManifest): string {
   if (roles.length > 0) {
     parts.push(`\n## Roles (${roles.length})`)
     for (const r of roles) {
-      parts.push(`- **${r.name}** (${r.label}): ${r.description} — permissions: ${r.permissions.join(', ')}`)
+      const restrictions = r.restricted_entity_types?.length
+        ? ` — restricted from: ${r.restricted_entity_types.map((rt: any) => typeof rt === 'string' ? rt : rt.type).join(', ')}`
+        : ' — full access'
+      parts.push(`- **${r.name}** (${r.label}): ${r.description} — permissions: ${r.permissions.join(', ')}${restrictions}`)
     }
   }
 
@@ -263,7 +268,10 @@ export interface ParsedExplorationOutput {
   relations_added?: Array<{ source_type: string; target_type: string; relation_type: string; description?: string }>
   relations_modified?: Array<{ source_type: string; target_type: string; changes: Record<string, any> }>
   // D2-D8 dimension-specific artifacts
-  roles_added?: Array<{ name: string; label: string; description: string; permissions: string[]; can_access_entity_types: string[] }>
+  // Consolidation dimension
+  entity_types_removed?: Array<{ name: string; reason: string; absorbed_by: string }>
+  merges_applied?: Array<{ source: string; target: string; strategy: string }>
+  roles_added?: Array<{ name: string; label: string; description: string; permissions: string[]; restricted_entity_types: Array<{ type: string; justification: string }> }>
   workflows_added?: Array<{ name: string; label: string; description: string; entity_type: string; statuses: string[]; transitions: Array<{ from: string; to: string; role: string; conditions?: string }> }>
   compliance_added?: Array<{ name: string; standard: string; description: string; entity_types: string[]; checkpoints: string[] }>
   documents_added?: Array<{ name: string; label: string; description: string; entity_type?: string; format: string; retention_days?: number }>

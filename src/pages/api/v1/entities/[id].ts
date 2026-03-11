@@ -4,6 +4,7 @@ import { verifyAppToken } from '../../../../../server/modules/app-auth/service'
 import * as service from '../../../../../server/modules/entities/service'
 import { ValidationError } from '../../../../../server/modules/entities/service'
 import * as security from '../../../../../server/modules/security/service'
+import { checkRoleAccess } from '../../../../../server/modules/runtime/enforcement'
 
 function requireAnyAuth(request: Request) {
   const platform = optionalAuth(request)
@@ -23,6 +24,14 @@ export const GET: APIRoute = async ({ params, request }) => {
   try {
     const auth = requireAnyAuth(request)
     const entity = await service.getEntity(params.id!)
+
+    // Role-based entity type access check (Step 7)
+    if (auth.type === 'app' && auth.containerId && entity.entity_type?.name) {
+      const access = await checkRoleAccess(auth.containerId, auth.role, entity.entity_type.name)
+      if (!access.allowed) {
+        return Response.json({ error: access.reason }, { status: 403 })
+      }
+    }
 
     // Apply field-level security masking (C4)
     if (entity.container_id && entity.entity_type?.name) {
@@ -49,6 +58,7 @@ export const PUT: APIRoute = async ({ params, request }) => {
     const entity = await service.updateEntity(params.id!, {
       ...body,
       last_modified_by_user_id: auth.userId,
+      user_role: auth.role,
     })
     return Response.json(entity)
   } catch (err: any) {

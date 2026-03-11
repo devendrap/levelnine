@@ -20,7 +20,7 @@ export default function ManifestActions(props: {
     return el?.value ?? 'ollama'
   }
 
-  const generateSchemas = async () => {
+  const generateSchemas = async (force = false) => {
     setGenerating(true)
     setCompleted(0)
     setResults([])
@@ -29,7 +29,7 @@ export default function ManifestActions(props: {
       const res = await fetch(`/api/v1/containers/${props.containerId}/generate-schemas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: provider() }),
+        body: JSON.stringify({ provider: provider(), force }),
       })
 
       if (!res.ok || !res.body) {
@@ -103,7 +103,7 @@ export default function ManifestActions(props: {
       <div class="flex items-center gap-2">
         <Show when={props.containerStatus !== 'locked' && props.missingSchemas > 0}>
           <button
-            onClick={generateSchemas}
+            onClick={() => generateSchemas(false)}
             disabled={generating()}
             class="px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40"
             style={{
@@ -113,8 +113,24 @@ export default function ManifestActions(props: {
             }}
           >
             {generating()
-              ? `Generating... ${completed()}/${props.missingSchemas}`
+              ? `Generating... ${completed()}/${props.totalCount}`
               : `Generate All Schemas (${props.missingSchemas} remaining)`}
+          </button>
+        </Show>
+        <Show when={props.containerStatus !== 'locked' && props.missingSchemas === 0 && props.totalCount > 0}>
+          <button
+            onClick={() => generateSchemas(true)}
+            disabled={generating()}
+            class="px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40"
+            style={{
+              "background-color": "rgba(212,164,74,0.08)",
+              color: "var(--ui-primary, #D4A44A)",
+              border: "1px solid rgba(212,164,74,0.2)",
+            }}
+          >
+            {generating()
+              ? `Regenerating... ${completed()}/${props.totalCount}`
+              : `Regenerate All (Type Packages)`}
           </button>
         </Show>
         <Show when={props.allReviewed && props.containerStatus !== 'locked' && props.containerStatus !== 'launched'}>

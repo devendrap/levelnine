@@ -229,37 +229,140 @@ export async function generateAllSchemas(
   model?: string,
   concurrency: number = 5,
   onProgress?: (result: { name: string; success: boolean; error?: string; index: number; total: number }) => void,
+  force: boolean = false,
 ): Promise<{ container: Container; results: Array<{ name: string; success: boolean; error?: string }> }> {
   const container = await repo.findContainerById(containerId)
   if (!container) throw new ContainerError('Container not found', 404)
   if (container.status === 'locked') throw new ContainerError('Cannot modify locked container', 403)
 
   const manifest = (container.manifest ?? {}) as ContainerManifest
-  const missing = (manifest.entity_types ?? []).filter(et => !et.schema)
+  const targets = force
+    ? (manifest.entity_types ?? [])
+    : (manifest.entity_types ?? []).filter(et => !et.schema)
 
-  if (missing.length === 0) {
+  if (targets.length === 0) {
     return { container, results: [] }
+  }
+
+  // Clear existing schemas when force-regenerating
+  if (force) {
+    for (const et of targets) {
+      delete et.schema
+      delete (et as any).data_schema
+      delete (et as any).field_metadata
+      delete (et as any).related_types
+      delete (et as any).document_slots
+      delete (et as any).report_relevance
+    }
+    await repo.updateContainer(containerId, { manifest })
   }
 
   const { client } = getClient(provider)
   const modelId = getModel(provider, model)
 
-  // Build a focused prompt for single entity type schema generation
-  const schemaPrompt = process.env.PARALLEL_SCHEMA_PROMPT ?? `Generate the full detailed JSON schema for "{{name}}" ({{description}}).
+  // Build manifest context for type package generation
+  const relations = manifest.relations ?? []
+  const documents = manifest.documents ?? []
+  const reports = manifest.reports ?? []
 
-Use appropriate ai-ui components (Tabs for sections, Select for dropdowns, DatePicker for dates, FileUpload for documents, RichText for notes, Table for tabular data, Checkbox for booleans, Grid for side-by-side fields, Card for grouped sections).
+  // Type package prompt — asks for ui_spec + data_schema + field_metadata + related_types + document_slots + report_relevance
+  const typePackagePrompt = `Generate a complete **type package** for "{{name}}" ({{description}}).
 
-Key fields to include: {{key_fields}}
+Key fields: {{key_fields}}
+{{manifest_context}}
 
-Respond with ONLY a valid JSON object — no markdown, no explanation, no code fences. The JSON should be an ai-ui spec starting with {"type": "Container", ...}.`
+Respond with ONLY a valid JSON object. Do NOT wrap in code fences or markdown.
 
-  // Worker function for one entity type
-  const generateOne = async (et: { name: string; description?: string; key_fields?: string[] }): Promise<{ name: string; success: boolean; schema?: any; error?: string }> => {
+EXAMPLE of correct output for entity type "invoice":
+{
+  "ui_spec": {
+    "type": "Container",
+    "props": { "title": "Invoice", "padding": "lg" },
+    "children": [
+      { "type": "Tabs", "props": { "tabs": ["Details", "Line Items"] }, "children": [
+        { "type": "Stack", "props": { "gap": "md" }, "children": [
+          { "type": "Grid", "props": { "columns": 2, "gap": "md" }, "children": [
+            { "type": "Text", "props": { "content": "Invoice Number", "variant": "label" } },
+            { "type": "Text", "props": { "bind": "invoice_number" } },
+            { "type": "Text", "props": { "content": "Status", "variant": "label" } },
+            { "type": "Select", "props": { "bind": "status", "options": ["draft", "sent", "paid"] } }
+          ]},
+          { "type": "DatePicker", "props": { "bind": "due_date", "label": "Due Date" } }
+        ]},
+        { "type": "Table", "props": { "bind": "line_items_display", "columns": ["Description", "Qty", "Amount"] } }
+      ]}
+    ]
+  },
+  "data_schema": {
+    "type": "object",
+    "properties": {
+      "invoice_number": { "type": "string", "description": "Unique invoice identifier" },
+      "status": { "type": "string", "enum": ["draft", "sent", "paid", "overdue"], "description": "Current invoice status" },
+      "due_date": { "type": "string", "format": "date", "description": "Payment due date" },
+      "total_amount": { "type": "number", "description": "Total invoice amount" }
+    },
+    "required": ["invoice_number", "status"]
+  },
+  "field_metadata": {
+    "invoice_number": { "default": null, "searchable": true, "sortable": true, "show_in_list": true },
+    "status": { "default": "draft", "searchable": true, "sortable": true, "show_in_list": true },
+    "due_date": { "default": null, "searchable": false, "sortable": true, "show_in_list": true },
+    "total_amount": { "default": 0, "searchable": false, "sortable": true, "show_in_list": true }
+  },
+  "related_types": [
+    { "type": "client", "relation": "belongs_to", "display": "section" },
+    { "type": "payment", "relation": "has_many", "display": "tab" }
+  ],
+  "document_slots": ["invoice_pdf"],
+  "report_relevance": ["accounts_receivable_aging"]
+}
+
+NOW generate the type package for "{{name}}" following these STRICT RULES:
+
+RULES:
+- **ui_spec**: Use ONLY this node format: { "type": "ComponentName", "props": {...}, "children": [...] }. Do NOT use "components" key. Use "children" for nested content. Available components: Container, Tabs, Stack, Row, Grid, Card, Text, Heading, Select, DatePicker, FileUpload, RichText, Table, Checkbox, Badge, Button, Input, NumberInput, TextArea, Toggle.
+- **data_schema**: JSON Schema for THIS entity's OWN direct fields only. Use proper types (string, number, integer, boolean, array). Include "enum" for constrained values. Do NOT include related entity types as array fields (e.g., do NOT add "invoices": {"type": "array", "items": {...}} — related types go in related_types only).
+- **field_metadata**: One entry per field in data_schema. Keys: default, searchable, sortable, show_in_list (all required).
+- **related_types**: Only include types from the manifest relations listed above. If no relations involve this type, return [].
+- **document_slots**: Only include document names from the manifest documents listed above. If no documents reference this type, return []. Do NOT invent document names.
+- **report_relevance**: Only include report names from the manifest reports listed above. If no reports reference this type, return [].`
+
+  // Worker function for one entity type — returns full type package
+  type TypePackageResult = {
+    name: string
+    success: boolean
+    schema?: any
+    data_schema?: any
+    field_metadata?: any
+    related_types?: any
+    document_slots?: any
+    report_relevance?: any
+    error?: string
+  }
+
+  const generateOne = async (et: { name: string; description?: string; key_fields?: string[] }): Promise<TypePackageResult> => {
     try {
-      const prompt = schemaPrompt
+      // Build manifest context specific to this entity type
+      const typeRelations = relations.filter(r => r.source_type === et.name || r.target_type === et.name)
+      const typeDocs = documents.filter(d => d.entity_type === et.name)
+      const typeReports = reports.filter(r => r.entity_types?.includes(et.name))
+
+      let manifestContext = ''
+      if (typeRelations.length > 0) {
+        manifestContext += `\nRelations involving this type:\n${typeRelations.map(r => `- ${r.source_type} --[${r.relation_type}]--> ${r.target_type}: ${r.description ?? ''}`).join('\n')}`
+      }
+      if (typeDocs.length > 0) {
+        manifestContext += `\nDocuments for this type:\n${typeDocs.map(d => `- ${d.name} (${d.format}): ${d.description}`).join('\n')}`
+      }
+      if (typeReports.length > 0) {
+        manifestContext += `\nReports including this type:\n${typeReports.map(r => `- ${r.name} (${r.report_type}): ${r.description}`).join('\n')}`
+      }
+
+      const prompt = typePackagePrompt
         .replace(/\{\{name\}\}/g, et.name)
         .replace(/\{\{description\}\}/g, et.description ?? et.name)
         .replace(/\{\{key_fields\}\}/g, (et.key_fields ?? []).join(', ') || 'infer from domain')
+        .replace(/\{\{manifest_context\}\}/g, manifestContext || '\n(No relations, documents, or reports reference this type yet)')
 
       const response = await client.chat.completions.create({
         model: modelId,
@@ -276,20 +379,35 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
       // Extract JSON from response (handle optional code fences)
       const jsonMatch = reply.match(/```(?:json)?\s*([\s\S]*?)```/) ?? [null, reply]
       const jsonStr = jsonMatch[1]!.trim()
-      const schema = JSON.parse(jsonStr)
+      const pkg = JSON.parse(jsonStr)
 
-      return { name: et.name, success: true, schema }
+      // Accept both type-package format and legacy ui_spec-only format
+      if (pkg.ui_spec) {
+        return {
+          name: et.name,
+          success: true,
+          schema: pkg.ui_spec,
+          data_schema: pkg.data_schema ?? null,
+          field_metadata: pkg.field_metadata ?? null,
+          related_types: pkg.related_types ?? null,
+          document_slots: pkg.document_slots ?? null,
+          report_relevance: pkg.report_relevance ?? null,
+        }
+      }
+
+      // Legacy fallback: entire response is the ui_spec
+      return { name: et.name, success: true, schema: pkg }
     } catch (e: any) {
       return { name: et.name, success: false, error: e.message }
     }
   }
 
-  // Run sequentially, saving each schema to DB immediately after generation
-  const results: Array<{ name: string; success: boolean; schema?: any; error?: string }> = []
-  const total = missing.length
+  // Run sequentially, saving each type package to DB immediately after generation
+  const results: TypePackageResult[] = []
+  const total = targets.length
 
   for (let i = 0; i < total; i++) {
-    const result = await generateOne(missing[i])
+    const result = await generateOne(targets[i])
     results.push(result)
 
     // Save to DB immediately so progress persists even if connection drops
@@ -300,6 +418,11 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
         const et = (m.entity_types ?? []).find(e => e.name === result.name)
         if (et) {
           et.schema = result.schema
+          if (result.data_schema) et.data_schema = result.data_schema
+          if (result.field_metadata) et.field_metadata = result.field_metadata
+          if (result.related_types) et.related_types = result.related_types
+          if (result.document_slots) et.document_slots = result.document_slots
+          if (result.report_relevance) et.report_relevance = result.report_relevance
           await repo.updateContainer(containerId, { manifest: m })
         }
       }
@@ -349,17 +472,33 @@ export async function lockContainer(id: string): Promise<Container> {
   const result = await transaction(async (client) => {
     for (const et of manifest.entity_types!) {
       await client.query(
-        `INSERT INTO entity_types (name, description, schema, container_id)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO entity_types (name, description, schema, data_schema, field_metadata, related_types, document_slots, report_relevance, container_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (name, COALESCE(container_id, '00000000-0000-0000-0000-000000000000')) DO UPDATE SET
            description = EXCLUDED.description,
            schema = EXCLUDED.schema,
+           data_schema = EXCLUDED.data_schema,
+           field_metadata = EXCLUDED.field_metadata,
+           related_types = EXCLUDED.related_types,
+           document_slots = EXCLUDED.document_slots,
+           report_relevance = EXCLUDED.report_relevance,
            updated_at = NOW()`,
-        [et.name, et.description, et.schema ? JSON.stringify(et.schema) : null, id],
+        [
+          et.name, et.description,
+          et.schema ? JSON.stringify(et.schema) : null,
+          et.data_schema ? JSON.stringify(et.data_schema) : null,
+          et.field_metadata ? JSON.stringify(et.field_metadata) : null,
+          et.related_types ? JSON.stringify(et.related_types) : null,
+          et.document_slots ? JSON.stringify(et.document_slots) : null,
+          et.report_relevance ? JSON.stringify(et.report_relevance) : null,
+          id,
+        ],
       )
     }
 
-    // Upsert any remaining relations not yet materialized
+    // Upsert ALL manifest artifacts — catches chat-phase additions not yet materialized
+
+    // Relations
     for (const rel of manifest.relations ?? []) {
       await client.query(
         `INSERT INTO container_relations (container_id, source_type, target_type, relation_type, description, source_dimension)
@@ -367,6 +506,124 @@ export async function lockContainer(id: string): Promise<Container> {
          ON CONFLICT (container_id, source_type, target_type, relation_type) DO UPDATE SET
            description = EXCLUDED.description`,
         [id, rel.source_type, rel.target_type, rel.relation_type, rel.description ?? null, rel.source_dimension ?? null],
+      )
+    }
+
+    // Roles
+    for (const role of manifest.roles ?? []) {
+      await client.query(
+        `INSERT INTO container_roles (container_id, name, label, description, permissions, restricted_entity_types, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           permissions = EXCLUDED.permissions, restricted_entity_types = EXCLUDED.restricted_entity_types`,
+        [id, role.name, role.label, role.description, JSON.stringify(role.permissions), JSON.stringify(role.restricted_entity_types), role.source_dimension ?? null],
+      )
+    }
+
+    // Workflows (Step 5: ensures state machines are persisted for runtime enforcement)
+    for (const wf of manifest.workflows ?? []) {
+      await client.query(
+        `INSERT INTO container_workflows (container_id, name, label, description, entity_type, statuses, transitions, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           entity_type = EXCLUDED.entity_type, statuses = EXCLUDED.statuses, transitions = EXCLUDED.transitions`,
+        [id, wf.name, wf.label, wf.description, wf.entity_type, JSON.stringify(wf.statuses), JSON.stringify(wf.transitions), wf.source_dimension ?? null],
+      )
+    }
+
+    // Compliance
+    for (const c of manifest.compliance ?? []) {
+      await client.query(
+        `INSERT INTO container_compliance (container_id, name, standard, description, entity_types, checkpoints, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           standard = EXCLUDED.standard, description = EXCLUDED.description,
+           entity_types = EXCLUDED.entity_types, checkpoints = EXCLUDED.checkpoints`,
+        [id, c.name, c.standard, c.description, JSON.stringify(c.entity_types), JSON.stringify(c.checkpoints), c.source_dimension ?? null],
+      )
+    }
+
+    // Documents
+    for (const d of manifest.documents ?? []) {
+      await client.query(
+        `INSERT INTO container_documents (container_id, name, label, description, entity_type, format, retention_days, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           entity_type = EXCLUDED.entity_type, format = EXCLUDED.format, retention_days = EXCLUDED.retention_days`,
+        [id, d.name, d.label, d.description, d.entity_type ?? null, d.format, d.retention_days ?? null, d.source_dimension ?? null],
+      )
+    }
+
+    // Integrations
+    for (const i of manifest.integrations ?? []) {
+      await client.query(
+        `INSERT INTO container_integrations (container_id, name, label, description, system_type, direction, entity_types, config, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           system_type = EXCLUDED.system_type, direction = EXCLUDED.direction,
+           entity_types = EXCLUDED.entity_types, config = EXCLUDED.config`,
+        [id, i.name, i.label, i.description, i.system_type, i.direction, JSON.stringify(i.entity_types), JSON.stringify(i.config), i.source_dimension ?? null],
+      )
+    }
+
+    // Reports
+    for (const r of manifest.reports ?? []) {
+      await client.query(
+        `INSERT INTO container_reports (container_id, name, label, description, report_type, entity_types, schema, schedule, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           report_type = EXCLUDED.report_type, entity_types = EXCLUDED.entity_types,
+           schema = EXCLUDED.schema, schedule = EXCLUDED.schedule`,
+        [id, r.name, r.label, r.description, r.report_type, JSON.stringify(r.entity_types), r.schema ? JSON.stringify(r.schema) : null, r.schedule ?? null, r.source_dimension ?? null],
+      )
+    }
+
+    // Edge cases
+    for (const e of manifest.edge_cases ?? []) {
+      await client.query(
+        `INSERT INTO container_edge_cases (container_id, name, label, description, category, entity_types, handling, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           category = EXCLUDED.category, entity_types = EXCLUDED.entity_types, handling = EXCLUDED.handling`,
+        [id, e.name, e.label, e.description, e.category, JSON.stringify(e.entity_types), e.handling, e.source_dimension ?? null],
+      )
+    }
+
+    // Notifications
+    for (const n of manifest.notifications ?? []) {
+      await client.query(
+        `INSERT INTO container_notifications (container_id, name, label, description, trigger_entity_type, trigger_event, trigger_condition, recipients, channel, escalation_minutes, escalation_to, template, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, description = EXCLUDED.description,
+           trigger_entity_type = EXCLUDED.trigger_entity_type, trigger_event = EXCLUDED.trigger_event,
+           trigger_condition = EXCLUDED.trigger_condition, recipients = EXCLUDED.recipients,
+           channel = EXCLUDED.channel, escalation_minutes = EXCLUDED.escalation_minutes,
+           escalation_to = EXCLUDED.escalation_to, template = EXCLUDED.template`,
+        [id, n.name, n.label, n.description, n.trigger_entity_type, n.trigger_event,
+         n.trigger_condition ?? null, JSON.stringify(n.recipients), n.channel,
+         n.escalation_minutes ?? null, n.escalation_to ?? null, n.template ?? null, n.source_dimension ?? null],
+      )
+    }
+
+    // UI configs
+    for (const u of manifest.ui_configs ?? []) {
+      await client.query(
+        `INSERT INTO container_ui_configs (container_id, name, label, entity_type, view_type, grid_config, detail_config, navigation, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, entity_type = EXCLUDED.entity_type,
+           view_type = EXCLUDED.view_type, grid_config = EXCLUDED.grid_config,
+           detail_config = EXCLUDED.detail_config, navigation = EXCLUDED.navigation`,
+        [id, u.name, u.label, u.entity_type, u.view_type,
+         JSON.stringify(u.grid_config), JSON.stringify(u.detail_config ?? {}),
+         JSON.stringify(u.navigation ?? {}), u.source_dimension ?? null],
       )
     }
 
@@ -414,7 +671,12 @@ export async function launchContainer(id: string): Promise<Container> {
 /** Save entity types to manifest (merge with existing, overwrite by name) */
 export async function saveEntityTypes(
   containerId: string,
-  entityTypes: Array<{ name: string; description: string; schema: Record<string, any> | null; key_fields?: string[] }>,
+  entityTypes: Array<{
+    name: string; description: string; schema: Record<string, any> | null; key_fields?: string[]
+    data_schema?: Record<string, any> | null; field_metadata?: Record<string, any> | null
+    related_types?: Array<{ type: string; relation: string; display: string }> | null
+    document_slots?: string[] | null; report_relevance?: string[] | null
+  }>,
 ): Promise<Container> {
   const container = await repo.findContainerById(containerId)
   if (!container) throw new ContainerError('Container not found', 404)
