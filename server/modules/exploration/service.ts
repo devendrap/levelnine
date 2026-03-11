@@ -187,7 +187,7 @@ export async function executeNextStep(
 // ============================================================================
 
 export interface ValidationWarning {
-  type: 'phantom_type' | 'missing_workflow_target' | 'dangling_relation' | 'missing_document_target' | 'missing_report_source'
+  type: 'phantom_type' | 'missing_workflow_target' | 'dangling_relation' | 'missing_document_target' | 'missing_report_source' | 'orphan_type'
   message: string
   source: string
   referenced_type: string
