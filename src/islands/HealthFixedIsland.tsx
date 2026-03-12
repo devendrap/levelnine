@@ -1,4 +1,4 @@
-import { createSignal, createResource, Show, For } from 'solid-js'
+import { createSignal, createResource, Show, For, onMount } from 'solid-js'
 import { Renderer } from '../renderer/Renderer'
 import type { UIComponent } from '../renderer/types'
 
