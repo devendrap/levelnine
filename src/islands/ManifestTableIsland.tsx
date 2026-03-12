@@ -22,6 +22,7 @@ export default function ManifestTableIsland(props: {
   const [previewMode, setPreviewMode] = createSignal<'preview' | 'code'>('preview')
   const [generating, setGenerating] = createSignal(false)
   const [completed, setCompleted] = createSignal(0)
+  const [genTotal, setGenTotal] = createSignal(0)
   const [results, setResults] = createSignal<Array<{ name: string; success: boolean; error?: string }>>([])
   const [confirmAction, setConfirmAction] = createSignal<{ title: string; message: string; onConfirm: () => void } | null>(null)
 
@@ -103,6 +104,7 @@ export default function ManifestTableIsland(props: {
   const generateSchemas = async () => {
     setGenerating(true)
     setCompleted(0)
+    setGenTotal(missingSchemas())
     setResults([])
     try {
       const res = await fetch(`/api/v1/containers/${props.containerId}/generate-schemas`, {
@@ -133,6 +135,7 @@ export default function ManifestTableIsland(props: {
             try { data = JSON.parse(line.slice(6)) } catch { continue }
             if (eventType === 'progress') {
               setCompleted(data.index)
+              if (data.total) setGenTotal(data.total)
               setResults(prev => [...prev, { name: data.name, success: data.success, error: data.error }])
               // Update entity type with schema in real-time
               if (data.success && data.schema) {
@@ -203,7 +206,7 @@ export default function ManifestTableIsland(props: {
               }}
             >
               {generating()
-                ? `Generating... ${completed()}/${missingSchemas()}`
+                ? `Generating... ${completed()}/${genTotal()}`
                 : `Generate Schemas (${missingSchemas()})`}
             </button>
           </Show>
