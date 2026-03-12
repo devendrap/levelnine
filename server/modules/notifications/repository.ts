@@ -25,7 +25,7 @@ export async function enqueue(data: {
   entity_id?: string
 }): Promise<NotificationQueueEntry> {
   const result = await query<NotificationQueueEntry>(
-    `INSERT INTO notification_queue (container_id, recipient_user_id, channel, subject, body, payload, entity_id)
+    `INSERT INTO app_notifications (container_id, recipient_user_id, channel, subject, body, payload, entity_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
     [data.container_id, data.recipient_user_id, data.channel,
@@ -37,7 +37,7 @@ export async function enqueue(data: {
 
 export async function findPending(limit = 100): Promise<NotificationQueueEntry[]> {
   const result = await query<NotificationQueueEntry>(
-    `SELECT * FROM notification_queue WHERE status = 'pending' ORDER BY created_at LIMIT $1`,
+    `SELECT * FROM app_notifications WHERE status = 'pending' ORDER BY created_at LIMIT $1`,
     [limit],
   )
   return result.rows
@@ -45,21 +45,21 @@ export async function findPending(limit = 100): Promise<NotificationQueueEntry[]
 
 export async function markSent(id: string): Promise<void> {
   await query(
-    `UPDATE notification_queue SET status = 'sent', sent_at = NOW() WHERE id = $1`,
+    `UPDATE app_notifications SET status = 'sent', sent_at = NOW() WHERE id = $1`,
     [id],
   )
 }
 
 export async function markRead(id: string): Promise<void> {
   await query(
-    `UPDATE notification_queue SET status = 'read', read_at = NOW() WHERE id = $1`,
+    `UPDATE app_notifications SET status = 'read', read_at = NOW() WHERE id = $1`,
     [id],
   )
 }
 
 export async function markFailed(id: string): Promise<void> {
   await query(
-    `UPDATE notification_queue SET status = 'failed' WHERE id = $1`,
+    `UPDATE app_notifications SET status = 'failed' WHERE id = $1`,
     [id],
   )
 }
@@ -83,11 +83,11 @@ export async function findByRecipient(
 
   const [entries, countResult] = await Promise.all([
     query<NotificationQueueEntry>(
-      `SELECT * FROM notification_queue WHERE ${where} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx}`,
+      `SELECT * FROM app_notifications WHERE ${where} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx}`,
       [...params, limit, offset],
     ),
     query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM notification_queue WHERE ${where}`,
+      `SELECT COUNT(*) as count FROM app_notifications WHERE ${where}`,
       params,
     ),
   ])
@@ -100,7 +100,7 @@ export async function findByRecipient(
 
 export async function countUnread(userId: string): Promise<number> {
   const result = await query<{ count: string }>(
-    `SELECT COUNT(*) as count FROM notification_queue
+    `SELECT COUNT(*) as count FROM app_notifications
      WHERE recipient_user_id = $1 AND channel = 'in_app' AND status IN ('pending', 'sent')`,
     [userId],
   )

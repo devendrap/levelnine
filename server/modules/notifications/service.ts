@@ -60,7 +60,8 @@ export async function processPendingEmails(): Promise<number> {
       // For now, just mark as sent
       await repo.markSent(notification.id)
       sent++
-    } catch {
+    } catch (err) {
+      console.error(`[notify] Failed to process notification ${notification.id}:`, err)
       await repo.markFailed(notification.id)
     }
   }

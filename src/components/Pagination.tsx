@@ -37,7 +37,7 @@ export function Pagination(props: { totalPages: number; bind?: string }) {
   const btnStyle = (active: boolean, disabled: boolean) => ({
     width: '36px',
     height: '36px',
-    color: disabled ? 'var(--ui-text-placeholder)' : active ? '#0B0F1A' : 'var(--ui-text)',
+    color: disabled ? 'var(--ui-text-placeholder)' : active ? 'var(--ui-text-on-primary)' : 'var(--ui-text)',
     "background-color": active ? 'var(--ui-primary)' : 'transparent',
     "border-color": active ? 'var(--ui-primary)' : 'var(--ui-border)',
     cursor: disabled ? 'default' : 'pointer',

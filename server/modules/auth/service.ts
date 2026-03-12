@@ -1,18 +1,9 @@
-import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import * as repo from './repository'
 import type { User } from '../../core/types/index'
+import { hashPassword, verifyPassword } from '../../core/password'
 
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../../core/config'
-const SALT_ROUNDS = 10
-
-async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, SALT_ROUNDS)
-}
-
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash)
-}
 
 export interface AuthPayload {
   userId: string

@@ -39,11 +39,15 @@ async function processAgePolicy(policy: repo.LifecyclePolicy): Promise<number> {
   const dateField = policy.trigger_condition.date_field ?? 'updated_at'
   const safeField = dateField === 'created_at' ? 'created_at' : 'updated_at'
 
+  const fieldClause = safeField === 'created_at'
+    ? 'e.created_at < NOW() - ($3 || \' days\')::INTERVAL'
+    : 'e.updated_at < NOW() - ($3 || \' days\')::INTERVAL'
+
   const result = await query<{ id: string }>(
     `SELECT e.id FROM entities e
      JOIN entity_types et ON et.id = e.entity_type_id
      WHERE et.name = $1 AND e.container_id = $2
-       AND e.${safeField} < NOW() - ($3 || ' days')::INTERVAL
+       AND ${fieldClause}
        AND e.status != 'archived'
      LIMIT 1000`,
     [policy.entity_type, policy.container_id, String(policy.retention_days)],

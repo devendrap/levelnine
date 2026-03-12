@@ -1,6 +1,7 @@
 import { createSignal, Show, For, onMount, createEffect } from 'solid-js'
 import DimensionProgress from './DimensionProgress'
 import GateDecisionCard from './GateDecisionCard'
+import { $provider } from '../../stores/manifest'
 import Toast from './Toast'
 import type {
   ExplorationRun,
@@ -31,10 +32,7 @@ export default function ExplorationPanel(props: Props) {
 
   const isLocked = () => props.containerStatus === 'locked' || props.containerStatus === 'launched'
 
-  const provider = () => {
-    const el = document.getElementById('provider-select') as HTMLSelectElement | null
-    return el?.value ?? 'ollama'
-  }
+  const provider = () => $provider.get()
 
   const fetchProgress = async () => {
     try {
@@ -213,7 +211,7 @@ export default function ExplorationPanel(props: Props) {
               class="px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer hover:opacity-90 transition-all"
               style={{
                 background: 'linear-gradient(135deg, var(--ui-primary) 0%, var(--ui-primary-hover) 100%)',
-                color: '#0B0F1A',
+                color: 'var(--ui-text-on-primary)',
                 'box-shadow': '0 2px 12px rgba(212,164,74,0.3)',
               }}
             >
@@ -421,7 +419,7 @@ export default function ExplorationPanel(props: Props) {
                     class="mt-4 px-5 py-2.5 rounded-lg text-xs font-semibold cursor-pointer hover:opacity-90 transition-all"
                     style={{
                       background: 'linear-gradient(135deg, var(--ui-primary) 0%, var(--ui-primary-hover) 100%)',
-                      color: '#0B0F1A',
+                      color: 'var(--ui-text-on-primary)',
                       'box-shadow': '0 2px 12px rgba(212,164,74,0.3)',
                     }}
                   >

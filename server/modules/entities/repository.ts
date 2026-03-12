@@ -105,6 +105,20 @@ export async function findEntityWithTypeById(id: string): Promise<(Entity & { en
   return { ...row, entity_type }
 }
 
+/** Batch count entities per entity type for a container — single query instead of N+1 */
+export async function countEntitiesByType(containerId: string): Promise<Array<{ name: string; total: number }>> {
+  const result = await query<{ name: string; total: string }>(
+    `SELECT et.name, COUNT(e.id)::text AS total
+     FROM entity_types et
+     LEFT JOIN entities e ON e.entity_type_id = et.id
+     WHERE et.container_id = $1 AND et.is_active = true
+     GROUP BY et.name
+     ORDER BY et.name`,
+    [containerId],
+  )
+  return result.rows.map(r => ({ name: r.name, total: parseInt(r.total, 10) }))
+}
+
 export async function findEntitiesPaginated(filters: {
   entity_type_id?: string
   entity_type_name?: string

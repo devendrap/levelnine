@@ -25,11 +25,14 @@ export default defineConfig({
       S3_REGION: envField.string({ context: 'server', access: 'secret', default: 'us-east-1' }),
       S3_ACCESS_KEY: envField.string({ context: 'server', access: 'secret', default: 'aiui' }),
       S3_SECRET_KEY: envField.string({ context: 'server', access: 'secret', default: 'aiui_dev_secret' }),
-      S3_BUCKET: envField.string({ context: 'server', access: 'secret', default: 'ai-ui-uploads' }),
+      S3_BUCKET: envField.string({ context: 'server', access: 'secret', default: 'levelnine-uploads' }),
     },
   },
   vite: {
     plugins: [tailwindcss()],
+    server: {
+      allowedHosts: ['app.levelnine.ai'],
+    },
     ssr: {
       noExternal: ['@nanostores/solid', 'nanostores'],
     },

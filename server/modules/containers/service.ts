@@ -71,7 +71,7 @@ export async function getMessages(containerId: string): Promise<ContainerMessage
 
 const DEFAULT_SYSTEM_PROMPT = `You are the world's foremost expert in whatever industry the admin describes. You have decades of hands-on experience, know every regulation, standard, workflow, edge case, and best practice inside out. You think like a veteran practitioner who has seen it all — not a generalist summarizing Wikipedia.
 
-Your mission: help the admin build a **production-grade** industry application by defining a comprehensive container structure for ai-ui, a schema-driven UI platform.
+Your mission: help the admin build a **production-grade** industry application by defining a comprehensive container structure for LevelNine, a schema-driven UI platform.
 
 ## Your Expertise Mandate
 
@@ -88,10 +88,10 @@ For the container, define:
    - \`name\` (snake_case, specific — e.g., \`going_concern_assessment\` not \`assessment\`)
    - \`description\` (one sentence, practitioner-level)
    - \`key_fields\` (the actual data fields a practitioner fills in)
-2. **Schemas** — for each entity type, a JSON UI spec using ai-ui components
+2. **Schemas** — for each entity type, a JSON UI spec using LevelNine components
 3. **Navigation** — phases and sections for the sidebar, mirroring real workflow order
 
-## ai-ui Component Reference
+## LevelNine Component Reference
 
 Available components (use the right one for each field type):
 - **Container** — wrapper with padding (sm/md/lg)
@@ -168,7 +168,7 @@ Rules for this block:
 - Include it at the very end of your response, after all discussion
 - It must be valid JSON — an array of objects
 - Include ALL entity types from the conversation so far, not just newly mentioned ones
-- If you generated a full schema for an entity type in this response, add a "schema" key with the full ai-ui JSON spec
+- If you generated a full schema for an entity type in this response, add a "schema" key with the full LevelNine JSON spec
 - The name must be snake_case with underscores
 - This block is for machine consumption — keep it clean, no comments`
 
@@ -228,7 +228,7 @@ export async function generateAllSchemas(
   provider: Provider = 'ollama',
   model?: string,
   concurrency: number = 5,
-  onProgress?: (result: { name: string; success: boolean; error?: string; index: number; total: number }) => void,
+  onProgress?: (result: { name: string; success: boolean; error?: string; index: number; total: number; schema?: any }) => void,
   force: boolean = false,
 ): Promise<{ container: Container; results: Array<{ name: string; success: boolean; error?: string }> }> {
   const container = await repo.findContainerById(containerId)
@@ -320,12 +320,79 @@ EXAMPLE of correct output for entity type "invoice":
 NOW generate the type package for "{{name}}" following these STRICT RULES:
 
 RULES:
-- **ui_spec**: Use ONLY this node format: { "type": "ComponentName", "props": {...}, "children": [...] }. Do NOT use "components" key. Use "children" for nested content. Available components: Container, Tabs, Stack, Row, Grid, Card, Text, Heading, Select, DatePicker, FileUpload, RichText, Table, Checkbox, Badge, Button, Input, NumberInput, TextArea, Toggle.
+- **ui_spec**: Use ONLY this node format: { "type": "ComponentName", "props": {...}, "children": [...] }. Do NOT use "components" key. Use "children" for nested content. Available components: Container, Tabs, Stack, Row, Grid, Card, Text, Heading, Select, DatePicker, FileUpload, Textarea, Table, Checkbox, Badge, Button, Input, Switch, Progress.
+- **bind values**: You MUST use ONLY the key_fields listed above as bind values. Do NOT invent new field names, add suffixes like "_display", or split composite fields into sub-fields. Every bind value must exactly match one of the key_fields. If a key_field is composite (e.g. "financial_information"), bind it as-is to a Textarea or Input.
 - **data_schema**: JSON Schema for THIS entity's OWN direct fields only. Use proper types (string, number, integer, boolean, array). Include "enum" for constrained values. Do NOT include related entity types as array fields (e.g., do NOT add "invoices": {"type": "array", "items": {...}} — related types go in related_types only).
 - **field_metadata**: One entry per field in data_schema. Keys: default, searchable, sortable, show_in_list (all required).
 - **related_types**: Only include types from the manifest relations listed above. If no relations involve this type, return [].
 - **document_slots**: Only include document names from the manifest documents listed above. If no documents reference this type, return []. Do NOT invent document names.
 - **report_relevance**: Only include report names from the manifest reports listed above. If no reports reference this type, return [].`
+
+  // Deterministic post-validation: fix bind mismatches and normalize component names
+  function validateSchema(node: any, allowedBinds: Set<string>): { fixed: number; removed: number } {
+    const stats = { fixed: 0, removed: 0 }
+
+    // Normalize component type aliases
+    const typeAliases: Record<string, string> = {
+      NumberInput: 'Input', TextArea: 'Textarea', RichText: 'Textarea',
+      Toggle: 'Switch', ProgressBar: 'Progress', Divider: 'Separator',
+    }
+    if (node.type && typeAliases[node.type]) {
+      node.type = typeAliases[node.type]
+      stats.fixed++
+    }
+
+    // Validate bind values
+    if (node.props?.bind && typeof node.props.bind === 'string') {
+      const bind = node.props.bind
+      if (!allowedBinds.has(bind)) {
+        // Try stripping _display suffix
+        const stripped = bind.replace(/_display$/, '')
+        if (allowedBinds.has(stripped)) {
+          node.props.bind = stripped
+          stats.fixed++
+        }
+        // Try removing dot notation (e.g. "disclosure_requirements.notes" → "disclosure_requirements")
+        else if (bind.includes('.')) {
+          const base = bind.split('.')[0]
+          if (allowedBinds.has(base)) {
+            node.props.bind = base
+            stats.fixed++
+          } else {
+            delete node.props.bind
+            stats.removed++
+          }
+        } else {
+          // Unknown bind — remove it so the field doesn't silently lose data
+          delete node.props.bind
+          stats.removed++
+        }
+      }
+    }
+
+    // Recurse into children
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) {
+        const childStats = validateSchema(child, allowedBinds)
+        stats.fixed += childStats.fixed
+        stats.removed += childStats.removed
+      }
+    }
+    // Also recurse into tabs[].children (object format)
+    if (Array.isArray(node.props?.tabs)) {
+      for (const tab of node.props.tabs) {
+        if (typeof tab === 'object' && Array.isArray(tab.children)) {
+          for (const child of tab.children) {
+            const childStats = validateSchema(child, allowedBinds)
+            stats.fixed += childStats.fixed
+            stats.removed += childStats.removed
+          }
+        }
+      }
+    }
+
+    return stats
+  }
 
   // Worker function for one entity type — returns full type package
   type TypePackageResult = {
@@ -382,11 +449,19 @@ RULES:
       const pkg = JSON.parse(jsonStr)
 
       // Accept both type-package format and legacy ui_spec-only format
+      const uiSpec = pkg.ui_spec ?? pkg
+      const allowedBinds = new Set(et.key_fields ?? [])
+
+      // Deterministic post-validation
+      if (allowedBinds.size > 0) {
+        validateSchema(uiSpec, allowedBinds)
+      }
+
       if (pkg.ui_spec) {
         return {
           name: et.name,
           success: true,
-          schema: pkg.ui_spec,
+          schema: uiSpec,
           data_schema: pkg.data_schema ?? null,
           field_metadata: pkg.field_metadata ?? null,
           related_types: pkg.related_types ?? null,
@@ -396,7 +471,7 @@ RULES:
       }
 
       // Legacy fallback: entire response is the ui_spec
-      return { name: et.name, success: true, schema: pkg }
+      return { name: et.name, success: true, schema: uiSpec }
     } catch (e: any) {
       return { name: et.name, success: false, error: e.message }
     }
@@ -405,6 +480,9 @@ RULES:
   // Run sequentially, saving each type package to DB immediately after generation
   const results: TypePackageResult[] = []
   const total = targets.length
+  // Keep manifest in memory to avoid re-fetching from DB on each iteration
+  const liveManifest = { ...(container.manifest ?? {}) } as ContainerManifest
+  const etByName = new Map((liveManifest.entity_types ?? []).map(e => [e.name, e]))
 
   for (let i = 0; i < total; i++) {
     const result = await generateOne(targets[i])
@@ -412,23 +490,19 @@ RULES:
 
     // Save to DB immediately so progress persists even if connection drops
     if (result.success && result.schema) {
-      const fresh = await repo.findContainerById(containerId)
-      if (fresh) {
-        const m = (fresh.manifest ?? {}) as ContainerManifest
-        const et = (m.entity_types ?? []).find(e => e.name === result.name)
-        if (et) {
-          et.schema = result.schema
-          if (result.data_schema) et.data_schema = result.data_schema
-          if (result.field_metadata) et.field_metadata = result.field_metadata
-          if (result.related_types) et.related_types = result.related_types
-          if (result.document_slots) et.document_slots = result.document_slots
-          if (result.report_relevance) et.report_relevance = result.report_relevance
-          await repo.updateContainer(containerId, { manifest: m })
-        }
+      const et = etByName.get(result.name)
+      if (et) {
+        et.schema = result.schema
+        if (result.data_schema) et.data_schema = result.data_schema
+        if (result.field_metadata) et.field_metadata = result.field_metadata
+        if (result.related_types) et.related_types = result.related_types
+        if (result.document_slots) et.document_slots = result.document_slots
+        if (result.report_relevance) et.report_relevance = result.report_relevance
+        await repo.updateContainer(containerId, { manifest: liveManifest })
       }
     }
 
-    onProgress?.({ name: result.name, success: result.success, error: result.error, index: i + 1, total })
+    onProgress?.({ name: result.name, success: result.success, error: result.error, index: i + 1, total, schema: result.schema })
   }
 
   // Log a summary message to chat history
@@ -498,10 +572,10 @@ export async function lockContainer(id: string): Promise<Container> {
 
     // Upsert ALL manifest artifacts — catches chat-phase additions not yet materialized
 
-    // Relations
-    for (const rel of manifest.relations ?? []) {
+    // Relations (skip malformed entries missing required fields)
+    for (const rel of (manifest.relations ?? []).filter(r => r.source_type && r.target_type && r.relation_type)) {
       await client.query(
-        `INSERT INTO container_relations (container_id, source_type, target_type, relation_type, description, source_dimension)
+        `INSERT INTO cfg_relations (container_id, source_type, target_type, relation_type, description, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (container_id, source_type, target_type, relation_type) DO UPDATE SET
            description = EXCLUDED.description`,
@@ -512,7 +586,7 @@ export async function lockContainer(id: string): Promise<Container> {
     // Roles
     for (const role of manifest.roles ?? []) {
       await client.query(
-        `INSERT INTO container_roles (container_id, name, label, description, permissions, restricted_entity_types, source_dimension)
+        `INSERT INTO cfg_roles (container_id, name, label, description, permissions, restricted_entity_types, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -524,7 +598,7 @@ export async function lockContainer(id: string): Promise<Container> {
     // Workflows (Step 5: ensures state machines are persisted for runtime enforcement)
     for (const wf of manifest.workflows ?? []) {
       await client.query(
-        `INSERT INTO container_workflows (container_id, name, label, description, entity_type, statuses, transitions, source_dimension)
+        `INSERT INTO cfg_workflows (container_id, name, label, description, entity_type, statuses, transitions, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -536,7 +610,7 @@ export async function lockContainer(id: string): Promise<Container> {
     // Compliance
     for (const c of manifest.compliance ?? []) {
       await client.query(
-        `INSERT INTO container_compliance (container_id, name, standard, description, entity_types, checkpoints, source_dimension)
+        `INSERT INTO cfg_compliance (container_id, name, standard, description, entity_types, checkpoints, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (container_id, name) DO UPDATE SET
            standard = EXCLUDED.standard, description = EXCLUDED.description,
@@ -548,7 +622,7 @@ export async function lockContainer(id: string): Promise<Container> {
     // Documents
     for (const d of manifest.documents ?? []) {
       await client.query(
-        `INSERT INTO container_documents (container_id, name, label, description, entity_type, format, retention_days, source_dimension)
+        `INSERT INTO cfg_documents (container_id, name, label, description, entity_type, format, retention_days, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -560,7 +634,7 @@ export async function lockContainer(id: string): Promise<Container> {
     // Integrations
     for (const i of manifest.integrations ?? []) {
       await client.query(
-        `INSERT INTO container_integrations (container_id, name, label, description, system_type, direction, entity_types, config, source_dimension)
+        `INSERT INTO cfg_integrations (container_id, name, label, description, system_type, direction, entity_types, config, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -573,7 +647,7 @@ export async function lockContainer(id: string): Promise<Container> {
     // Reports
     for (const r of manifest.reports ?? []) {
       await client.query(
-        `INSERT INTO container_reports (container_id, name, label, description, report_type, entity_types, schema, schedule, source_dimension)
+        `INSERT INTO cfg_reports (container_id, name, label, description, report_type, entity_types, schema, schedule, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -586,7 +660,7 @@ export async function lockContainer(id: string): Promise<Container> {
     // Edge cases
     for (const e of manifest.edge_cases ?? []) {
       await client.query(
-        `INSERT INTO container_edge_cases (container_id, name, label, description, category, entity_types, handling, source_dimension)
+        `INSERT INTO cfg_edge_cases (container_id, name, label, description, category, entity_types, handling, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -598,7 +672,7 @@ export async function lockContainer(id: string): Promise<Container> {
     // Notifications
     for (const n of manifest.notifications ?? []) {
       await client.query(
-        `INSERT INTO container_notifications (container_id, name, label, description, trigger_entity_type, trigger_event, trigger_condition, recipients, channel, escalation_minutes, escalation_to, template, source_dimension)
+        `INSERT INTO cfg_notifications (container_id, name, label, description, trigger_entity_type, trigger_event, trigger_condition, recipients, channel, escalation_minutes, escalation_to, template, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -615,7 +689,7 @@ export async function lockContainer(id: string): Promise<Container> {
     // UI configs
     for (const u of manifest.ui_configs ?? []) {
       await client.query(
-        `INSERT INTO container_ui_configs (container_id, name, label, entity_type, view_type, grid_config, detail_config, navigation, source_dimension)
+        `INSERT INTO cfg_ui_configs (container_id, name, label, entity_type, view_type, grid_config, detail_config, navigation, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, entity_type = EXCLUDED.entity_type,
@@ -624,6 +698,23 @@ export async function lockContainer(id: string): Promise<Container> {
         [id, u.name, u.label, u.entity_type, u.view_type,
          JSON.stringify(u.grid_config), JSON.stringify(u.detail_config ?? {}),
          JSON.stringify(u.navigation ?? {}), u.source_dimension ?? null],
+      )
+    }
+
+    // Pages (D11)
+    for (const p of manifest.pages ?? []) {
+      await client.query(
+        `INSERT INTO cfg_pages (container_id, name, label, route, icon, layout, sections, is_default, access_roles, sort_order, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, route = EXCLUDED.route, icon = EXCLUDED.icon,
+           layout = EXCLUDED.layout, sections = EXCLUDED.sections,
+           is_default = EXCLUDED.is_default, access_roles = EXCLUDED.access_roles,
+           sort_order = EXCLUDED.sort_order`,
+        [id, p.name, p.label, p.route, p.icon ?? null, p.layout,
+         JSON.stringify(p.sections), p.is_default ?? false,
+         p.access_roles ? JSON.stringify(p.access_roles) : null,
+         p.is_default ? 0 : 99, p.source_dimension ?? null],
       )
     }
 
@@ -657,6 +748,32 @@ export async function launchContainer(id: string): Promise<Container> {
   const existing = await repo.findContainerBySlug(slug)
   if (existing && existing.id !== id) {
     throw new ContainerError(`Slug "${slug}" is already taken by another container`, 409)
+  }
+
+  // Insert seed data if present in manifest
+  const manifest = container.manifest as ContainerManifest
+  if (manifest.seed_data?.length) {
+    await transaction(async (client) => {
+      for (const seed of manifest.seed_data!) {
+        // Look up entity_type_id by name + container_id
+        const typeResult = await client.query(
+          'SELECT id FROM entity_types WHERE name = $1 AND container_id = $2',
+          [seed.entity_type, id],
+        )
+        if (typeResult.rows.length === 0) continue
+
+        const entityTypeId = typeResult.rows[0].id
+        for (const record of seed.records) {
+          await client.query(
+            `INSERT INTO entities (entity_type_id, container_id, name, status, content, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT DO NOTHING`,
+            [entityTypeId, id, record.name, record.status || 'active',
+             JSON.stringify(record.content), JSON.stringify({ source: 'seed_data' })],
+          )
+        }
+      }
+    })
   }
 
   const c = await repo.updateContainer(id, { status: 'launched', slug } as any)

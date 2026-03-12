@@ -19,7 +19,7 @@ export async function findByContainerAndType(
   entityType: string,
 ): Promise<ValidationRule[]> {
   const result = await query<ValidationRule>(
-    `SELECT * FROM validation_rules
+    `SELECT * FROM sys_validation_rules
      WHERE container_id = $1 AND entity_type = $2 AND is_active = true
      ORDER BY rule_name`,
     [containerId, entityType],
@@ -37,7 +37,7 @@ export async function insertRule(data: {
   severity?: ValidationRule['severity']
 }): Promise<ValidationRule> {
   const result = await query<ValidationRule>(
-    `INSERT INTO validation_rules (container_id, entity_type, rule_name, rule_type, expression, error_message, severity)
+    `INSERT INTO sys_validation_rules (container_id, entity_type, rule_name, rule_type, expression, error_message, severity)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (container_id, entity_type, rule_name) DO UPDATE SET
        rule_type = EXCLUDED.rule_type, expression = EXCLUDED.expression,
@@ -50,5 +50,5 @@ export async function insertRule(data: {
 }
 
 export async function deleteRule(id: string): Promise<void> {
-  await query('DELETE FROM validation_rules WHERE id = $1', [id])
+  await query('DELETE FROM sys_validation_rules WHERE id = $1', [id])
 }

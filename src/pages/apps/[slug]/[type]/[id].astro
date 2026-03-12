@@ -1,7 +1,7 @@
 ---
 import AppLayout from '../../../../layouts/AppLayout.astro'
 import AppEntityFormIsland from '../../../../islands/AppEntityFormIsland.tsx'
-import { loadAppContext, getUIConfig } from '../../../../lib/apps/helpers'
+import { loadAppContext, getUIConfig, getPages } from '../../../../lib/apps/helpers'
 import * as entityService from '../../../../../server/modules/entities/service'
 
 const ctx = await loadAppContext(Astro)
@@ -38,6 +38,7 @@ const relatedTypes: Array<{ type: string; relation: string; display: string }> =
 
 // Document slots from type package
 const documentSlots: string[] = (manifestEt as any)?.document_slots ?? []
+const allPages = await getPages(container.id)
 ---
 
 <AppLayout
@@ -46,6 +47,7 @@ const documentSlots: string[] = (manifestEt as any)?.document_slots ?? []
   userName={user.email}
   userRole={user.role}
   activeType={typeName}
+  pages={allPages}
   breadcrumbs={[
     { label, href: `/apps/${container.slug}/${typeName}` },
     { label: entity.name },

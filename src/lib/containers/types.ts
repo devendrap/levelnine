@@ -21,6 +21,8 @@ export interface ContainerManifest {
   edge_cases?: EdgeCaseDef[]
   notifications?: NotificationRuleDef[]
   ui_configs?: UIConfigDef[]
+  pages?: PageDef[]
+  seed_data?: SeedDataDef[]
   navigation?: Array<{ label: string; children: string[] }>
   scope?: string[]
   out_of_scope?: string[]
@@ -142,6 +144,44 @@ export interface UIConfigDef {
   detail_config?: Record<string, any>
   navigation?: Record<string, any>
   source_dimension?: string
+}
+
+export type PageWidget =
+  | { type: 'stats_grid'; entity_types: string[] }
+  | { type: 'recent_activity'; limit?: number }
+  | { type: 'chart'; chart_type: 'bar' | 'line' | 'doughnut' | 'pie'; entity_type: string; group_by: string; title: string }
+  | { type: 'entity_list'; entity_type: string; columns: string[]; limit?: number; status_filter?: string }
+  | { type: 'quick_actions'; entity_types: string[] }
+  | { type: 'kpi_card'; label: string; entity_type: string; metric: 'count' | 'count_by_status'; status?: string }
+  | { type: 'rich_text'; content: Record<string, any> }
+  | { type: 'workflow_summary'; entity_type: string; workflow_name: string }
+  | { type: 'compliance_checklist'; compliance_name: string }
+
+export interface PageSectionDef {
+  title?: string
+  width?: 'full' | 'half' | 'third'
+  widget: PageWidget
+}
+
+export interface PageDef {
+  name: string
+  label: string
+  route: string
+  icon?: string
+  layout: 'single' | 'two_column' | 'grid'
+  is_default?: boolean
+  sections: PageSectionDef[]
+  access_roles?: string[]
+  source_dimension?: string
+}
+
+export interface SeedDataDef {
+  entity_type: string
+  records: Array<{
+    name: string
+    status: string
+    content: Record<string, any>
+  }>
 }
 
 // Exploration types

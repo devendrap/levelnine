@@ -19,7 +19,7 @@ export async function getClassifications(
   entityType: string,
 ): Promise<DataClassification[]> {
   const result = await query<DataClassification>(
-    `SELECT * FROM data_classifications WHERE container_id = $1 AND entity_type = $2`,
+    `SELECT * FROM sys_data_classifications WHERE container_id = $1 AND entity_type = $2`,
     [containerId, entityType],
   )
   return result.rows
@@ -36,7 +36,7 @@ export async function classifyField(data: {
   mask_for_roles?: string[]
 }): Promise<DataClassification> {
   const result = await query<DataClassification>(
-    `INSERT INTO data_classifications (container_id, entity_type, field_path, classification, mask_for_roles)
+    `INSERT INTO sys_data_classifications (container_id, entity_type, field_path, classification, mask_for_roles)
      VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (container_id, entity_type, field_path) DO UPDATE SET
        classification = EXCLUDED.classification, mask_for_roles = EXCLUDED.mask_for_roles

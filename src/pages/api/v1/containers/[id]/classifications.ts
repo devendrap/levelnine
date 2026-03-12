@@ -22,7 +22,7 @@ export const GET: APIRoute = async ({ params, url, request }) => {
     }
 
     const result = await query(
-      `SELECT * FROM data_classifications WHERE ${conditions.join(' AND ')} ORDER BY entity_type, field_path`,
+      `SELECT * FROM sys_data_classifications WHERE ${conditions.join(' AND ')} ORDER BY entity_type, field_path`,
       queryParams,
     )
     return Response.json(result.rows)
@@ -78,7 +78,7 @@ export const DELETE: APIRoute = async ({ params, request }) => {
     }
 
     await query(
-      'DELETE FROM data_classifications WHERE container_id = $1 AND entity_type = $2 AND field_path = $3',
+      'DELETE FROM sys_data_classifications WHERE container_id = $1 AND entity_type = $2 AND field_path = $3',
       [containerId, body.entity_type, body.field_path],
     )
     return Response.json({ ok: true })

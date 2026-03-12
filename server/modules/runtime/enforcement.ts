@@ -8,6 +8,7 @@
  */
 
 import { query } from '../../db/index'
+import { APP_ROLE_HIERARCHY } from '../../middleware/auth'
 
 // ============================================================================
 // 1. Role-Based Entity Type Access
@@ -29,7 +30,7 @@ export async function checkRoleAccess(
   entityTypeName: string,
 ): Promise<AccessCheckResult> {
   const result = await query<{ restricted_entity_types: any }>(
-    'SELECT restricted_entity_types FROM container_roles WHERE container_id = $1 AND name = $2 AND is_active = true',
+    'SELECT restricted_entity_types FROM cfg_roles WHERE container_id = $1 AND name = $2 AND is_active = true',
     [containerId, roleName],
   )
 
@@ -84,7 +85,7 @@ export async function checkWorkflowTransition(
   userRole?: string,
 ): Promise<TransitionCheckResult> {
   const result = await query<{ statuses: any; transitions: any; name: string }>(
-    'SELECT name, statuses, transitions FROM container_workflows WHERE container_id = $1 AND entity_type = $2 AND is_active = true',
+    'SELECT name, statuses, transitions FROM cfg_workflows WHERE container_id = $1 AND entity_type = $2 AND is_active = true',
     [containerId, entityTypeName],
   )
 
@@ -119,10 +120,9 @@ export async function checkWorkflowTransition(
 
   // Check role gate (if transition specifies a required role)
   if (matchingTransition.role && userRole && matchingTransition.role !== userRole) {
-    // Allow if user role is higher in hierarchy: admin > editor > viewer
-    const hierarchy: Record<string, number> = { viewer: 1, editor: 2, admin: 3 }
-    const userLevel = hierarchy[userRole] ?? 0
-    const requiredLevel = hierarchy[matchingTransition.role] ?? 0
+    // Allow if user role is higher in hierarchy — uses APP_ROLE_HIERARCHY from auth middleware
+    const userLevel = APP_ROLE_HIERARCHY[userRole] ?? 0
+    const requiredLevel = APP_ROLE_HIERARCHY[matchingTransition.role] ?? 0
 
     if (userLevel < requiredLevel) {
       return {
@@ -130,7 +130,7 @@ export async function checkWorkflowTransition(
         reason: `Transition "${fromStatus}" → "${toStatus}" requires role "${matchingTransition.role}" (you are "${userRole}")`,
         available_transitions: fromTransitions.filter(t => {
           if (!t.role) return true
-          return (hierarchy[userRole] ?? 0) >= (hierarchy[t.role] ?? 0)
+          return (APP_ROLE_HIERARCHY[userRole] ?? 0) >= (APP_ROLE_HIERARCHY[t.role] ?? 0)
         }),
       }
     }
@@ -155,7 +155,7 @@ export async function getWorkflowInfo(
   transitions?: Array<{ to: string; role?: string; conditions?: string; allowed: boolean; reason?: string }>
 }> {
   const result = await query<{ statuses: any; transitions: any; name: string }>(
-    'SELECT name, statuses, transitions FROM container_workflows WHERE container_id = $1 AND entity_type = $2 AND is_active = true',
+    'SELECT name, statuses, transitions FROM cfg_workflows WHERE container_id = $1 AND entity_type = $2 AND is_active = true',
     [containerId, entityTypeName],
   )
 
@@ -173,13 +173,12 @@ export async function getWorkflowInfo(
   }
 
   // Get transitions from current status, annotated with role access
-  const hierarchy: Record<string, number> = { viewer: 1, editor: 2, admin: 3 }
-  const userLevel = hierarchy[userRole ?? ''] ?? 0
+  const userLevel = APP_ROLE_HIERARCHY[userRole ?? ''] ?? 0
 
   const available = transitions
     .filter(t => t.from === currentStatus)
     .map(t => {
-      const requiredLevel = hierarchy[t.role ?? ''] ?? 0
+      const requiredLevel = APP_ROLE_HIERARCHY[t.role ?? ''] ?? 0
       const allowed = !t.role || userLevel >= requiredLevel
       return {
         to: t.to,

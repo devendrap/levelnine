@@ -23,7 +23,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       }
 
       try {
-        const onProgress = (result: { name: string; success: boolean; error?: string; index: number; total: number }) => {
+        const onProgress = (result: { name: string; success: boolean; error?: string; index: number; total: number; schema?: any }) => {
           send('progress', result)
         }
 

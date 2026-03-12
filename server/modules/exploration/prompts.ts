@@ -14,6 +14,8 @@ const DIMENSION_ARTIFACTS: Record<string, string> = {
   edge_cases: `  "edge_cases_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "category": "exception|error_recovery|boundary|concurrency", "entity_types": ["affected_types"], "handling": "how to handle"}],`,
   notifications: `  "notifications_added": [{"name": "snake_case", "label": "Human Label", "description": "...", "trigger_entity_type": "entity_name", "trigger_event": "status_change|created|updated|field_change|sla_breach", "trigger_condition": "status == 'pending_approval'", "recipients": ["role_name"], "channel": "email|in_app|both", "escalation_minutes": 2880, "escalation_to": "senior_role", "template": "Notification message with {{entity_name}} variables"}],`,
   ui_navigation: `  "ui_configs_added": [{"name": "snake_case_list_view", "label": "Human Label", "entity_type": "entity_name", "view_type": "master_detail|full_page|dashboard|grid_only", "grid_config": {"columns": [{"field": "field_name", "label": "Column Label", "width": "150px", "sortable": true}], "default_sort": {"field": "name", "direction": "asc"}, "row_actions": ["edit","archive"], "bulk_actions": ["export"]}, "detail_config": {"layout": "tabs|accordion|sections", "sections": [{"label": "Section Name", "fields": ["field1","field2"], "related_entity_type": "optional_nested_entity"}]}, "navigation": {"menu_group": "Main|Settings|Reports", "icon": "optional", "sort_order": 1}}],`,
+  pages_dashboard: `  "pages_added": [{"name": "home", "label": "Home", "route": "home", "icon": "home", "layout": "grid", "is_default": true, "sections": [{"title": "Key Metrics", "width": "full", "widget": {"type": "stats_grid", "entity_types": ["type1","type2"]}}, {"title": "Recent Activity", "width": "half", "widget": {"type": "recent_activity", "limit": 10}}, {"title": "Status Overview", "width": "half", "widget": {"type": "chart", "chart_type": "doughnut", "entity_type": "main_type", "group_by": "status", "title": "Status Distribution"}}], "access_roles": []}],
+  "seed_data": [{"entity_type": "type_name", "records": [{"name": "Realistic Name", "status": "active", "content": {"field1": "value1", "field2": "value2"}}]}],`,
 }
 
 // Universal step wrappers (from env or defaults)
@@ -251,6 +253,22 @@ function buildManifestSummary(manifest: ContainerManifest): string {
     }
   }
 
+  const pages = manifest.pages ?? []
+  if (pages.length > 0) {
+    parts.push(`\n## Pages (${pages.length})`)
+    for (const p of pages) {
+      parts.push(`- **${p.name}** (${p.layout}): ${p.label}${p.is_default ? ' [DEFAULT]' : ''} — ${p.sections.length} sections`)
+    }
+  }
+
+  const seedData = manifest.seed_data ?? []
+  if (seedData.length > 0) {
+    parts.push(`\n## Seed Data (${seedData.length} types)`)
+    for (const s of seedData) {
+      parts.push(`- **${s.entity_type}**: ${s.records.length} records`)
+    }
+  }
+
   if (manifest.scope?.length) {
     parts.push(`\n## Scope: ${manifest.scope.join(', ')}`)
   }
@@ -280,6 +298,8 @@ export interface ParsedExplorationOutput {
   edge_cases_added?: Array<{ name: string; label: string; description: string; category: string; entity_types: string[]; handling: string }>
   notifications_added?: Array<{ name: string; label: string; description: string; trigger_entity_type: string; trigger_event: string; trigger_condition?: string; recipients: string[]; channel: string; escalation_minutes?: number; escalation_to?: string; template?: string }>
   ui_configs_added?: Array<{ name: string; label: string; entity_type: string; view_type: string; grid_config: Record<string, any>; detail_config?: Record<string, any>; navigation?: Record<string, any> }>
+  pages_added?: Array<{ name: string; label: string; route: string; icon?: string; layout: 'single' | 'two_column' | 'grid'; is_default?: boolean; sections: Array<{ title?: string; width?: string; widget: any }>; access_roles?: string[] }>
+  seed_data?: Array<{ entity_type: string; records: Array<{ name: string; status: string; content: Record<string, any> }> }>
   explore_opportunities?: Array<{ dimension: string; topic: string; reason: string }>
   out_of_scope_items?: Array<{ item: string; reason: string }>
   scope_items?: string[]

@@ -45,7 +45,7 @@ export default function LoginIsland() {
         style={{ "background-color": "var(--ui-card-bg)", "box-shadow": "var(--ui-shadow-lg)", border: "1px solid var(--ui-border)" }}
       >
         <div class="mb-8 text-center">
-          <h1 class="text-2xl font-semibold mb-1" style={{ color: "var(--ui-text)" }}>ai-ui</h1>
+          <img src="/icon.png" alt="LevelNine" style={{ height: "40px", "margin-bottom": "4px" }} />
           <p class="text-sm" style={{ color: "var(--ui-text-muted)" }}>Sign in to your account</p>
         </div>
 
@@ -111,7 +111,7 @@ export default function LoginIsland() {
             class="mt-2 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
             style={{
               "background-color": "var(--ui-primary)",
-              color: "#0B0F1A",
+              color: "var(--ui-text-on-primary)",
               "box-shadow": "var(--ui-shadow)",
             }}
           >

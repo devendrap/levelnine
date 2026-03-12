@@ -19,7 +19,7 @@ CREATE TABLE users (
 CREATE INDEX idx_users_email ON users (email);
 
 -- ============================================================================
--- Entity Types — schema registry (stores ai-ui spec templates)
+-- Entity Types — schema registry (stores LevelNine spec templates)
 -- ============================================================================
 CREATE TABLE entity_types (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -1,4 +1,4 @@
-# ai-ui
+# LevelNine
 
 An LLM-driven UI platform that transforms JSON specs into fully rendered interfaces. Define components via Zod schemas, generate UIs through AI conversation, and deploy industry-specific applications — all validated and type-safe.
 
@@ -25,12 +25,12 @@ Requires PostgreSQL (port 5433) and optionally MinIO for file uploads. Run `bun 
 
 ### JSON-to-UI Approach
 
-ai-ui uses the **declarative JSON spec** pattern — the same approach used by [Vercel json-render](https://json-render.dev/), [Google A2UI](https://a2ui.org/), and [Open-JSON-UI](https://github.com/nicholasgriffintn/open-json-ui). This sits between static component selection and open-ended code generation:
+LevelNine uses the **declarative JSON spec** pattern — the same approach used by [Vercel json-render](https://json-render.dev/), [Google A2UI](https://a2ui.org/), and [Open-JSON-UI](https://github.com/nicholasgriffintn/open-json-ui). This sits between static component selection and open-ended code generation:
 
 | Pattern | Security | Flexibility | Examples |
 |---------|----------|-------------|----------|
 | Static/Controlled | Highest | Lowest | CopilotKit |
-| **Declarative JSON** | **High** | **Medium** | **ai-ui**, json-render, A2UI |
+| **Declarative JSON** | **High** | **Medium** | **LevelNine**, json-render, A2UI |
 | Code Generation | Lowest | Highest | v0.dev |
 
 Key advantages: schema-validated output, cross-platform potential, streamable rendering, and no sandbox required.

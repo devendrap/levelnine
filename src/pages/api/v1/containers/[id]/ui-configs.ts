@@ -36,7 +36,7 @@ export const GET: APIRoute = async ({ params, url, request }) => {
     }
 
     const result = await query(
-      `SELECT * FROM container_ui_configs WHERE ${conditions.join(' AND ')} ORDER BY name`,
+      `SELECT * FROM cfg_ui_configs WHERE ${conditions.join(' AND ')} ORDER BY name`,
       queryParams,
     )
 

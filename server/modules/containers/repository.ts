@@ -61,7 +61,7 @@ export async function deleteContainer(id: string): Promise<boolean> {
 // Messages
 export async function findMessagesByContainer(containerId: string): Promise<ContainerMessage[]> {
   const result = await query<ContainerMessage>(
-    'SELECT * FROM container_messages WHERE container_id = $1 ORDER BY created_at ASC',
+    'SELECT * FROM chat_messages WHERE container_id = $1 ORDER BY created_at ASC',
     [containerId],
   )
   return result.rows
@@ -74,7 +74,7 @@ export async function insertMessage(data: {
   metadata?: Record<string, any>
 }): Promise<ContainerMessage> {
   const result = await query<ContainerMessage>(
-    `INSERT INTO container_messages (container_id, role, content, metadata)
+    `INSERT INTO chat_messages (container_id, role, content, metadata)
      VALUES ($1, $2, $3, $4) RETURNING *`,
     [data.container_id, data.role, data.content, JSON.stringify(data.metadata ?? {})],
   )

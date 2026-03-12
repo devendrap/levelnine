@@ -1,0 +1,157 @@
+---
+import AppLayout from '../../../../layouts/AppLayout.astro'
+import { loadAppContext, getPages } from '../../../../lib/apps/helpers'
+
+const ctx = await loadAppContext(Astro)
+if (ctx instanceof Response) return ctx
+const { container, entityTypes, user } = ctx
+
+// Admin only
+if (user.role !== 'admin') {
+  return Astro.redirect(`/apps/${container.slug}`)
+}
+
+const allPages = await getPages(container.id)
+const manifest = container.manifest as any
+
+// Compute some stats
+const entityTypeCount = entityTypes.length
+const roleCount = (manifest?.roles ?? []).length
+const workflowCount = (manifest?.workflows ?? []).length
+const complianceCount = (manifest?.compliance ?? []).length
+const pageCount = allPages.length
+const notificationCount = (manifest?.notifications ?? []).length
+---
+
+<AppLayout
+  container={container}
+  entityTypes={entityTypes}
+  userName={user.email}
+  userRole={user.role}
+  activePage="admin-settings"
+  pages={allPages}
+  breadcrumbs={[{ label: 'Admin' }, { label: 'Settings' }]}
+>
+  <div class="max-w-4xl mx-auto px-8 py-8">
+    <div class="mb-6">
+      <h1 class="text-xl font-bold" style="color:var(--ui-text)">Settings</h1>
+      <p class="text-sm mt-1" style="color:var(--ui-text-muted)">
+        Application configuration for {container.name}
+      </p>
+    </div>
+
+    <!-- App info -->
+    <div
+      class="rounded-xl p-6 mb-6"
+      style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
+    >
+      <h3 class="text-sm font-semibold mb-4" style="color:var(--ui-text)">Application Info</h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <span class="text-[11px] uppercase tracking-wider" style="color:var(--ui-text-placeholder)">Name</span>
+          <p class="text-sm mt-0.5" style="color:var(--ui-text)">{container.name}</p>
+        </div>
+        <div>
+          <span class="text-[11px] uppercase tracking-wider" style="color:var(--ui-text-placeholder)">Slug</span>
+          <p class="text-sm mt-0.5" style="color:var(--ui-text)">{container.slug}</p>
+        </div>
+        <div>
+          <span class="text-[11px] uppercase tracking-wider" style="color:var(--ui-text-placeholder)">Status</span>
+          <p class="text-sm mt-0.5" style="color:var(--ui-text)">{container.status}</p>
+        </div>
+        <div>
+          <span class="text-[11px] uppercase tracking-wider" style="color:var(--ui-text-placeholder)">Created</span>
+          <p class="text-sm mt-0.5" style="color:var(--ui-text)">{new Date(container.created_at).toLocaleDateString()}</p>
+        </div>
+        {container.description && (
+          <div class="col-span-2">
+            <span class="text-[11px] uppercase tracking-wider" style="color:var(--ui-text-placeholder)">Description</span>
+            <p class="text-sm mt-0.5" style="color:var(--ui-text)">{container.description}</p>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <!-- Manifest overview -->
+    <div
+      class="rounded-xl p-6 mb-6"
+      style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
+    >
+      <h3 class="text-sm font-semibold mb-4" style="color:var(--ui-text)">Manifest Overview</h3>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="rounded-lg p-4" style="background-color:var(--ui-bg)">
+          <div class="text-xl font-bold" style="color:var(--ui-primary)">{entityTypeCount}</div>
+          <div class="text-xs" style="color:var(--ui-text-muted)">Entity Types</div>
+        </div>
+        <div class="rounded-lg p-4" style="background-color:var(--ui-bg)">
+          <div class="text-xl font-bold" style="color:var(--ui-primary)">{roleCount}</div>
+          <div class="text-xs" style="color:var(--ui-text-muted)">Roles</div>
+        </div>
+        <div class="rounded-lg p-4" style="background-color:var(--ui-bg)">
+          <div class="text-xl font-bold" style="color:var(--ui-primary)">{workflowCount}</div>
+          <div class="text-xs" style="color:var(--ui-text-muted)">Workflows</div>
+        </div>
+        <div class="rounded-lg p-4" style="background-color:var(--ui-bg)">
+          <div class="text-xl font-bold" style="color:var(--ui-primary)">{complianceCount}</div>
+          <div class="text-xs" style="color:var(--ui-text-muted)">Compliance Rules</div>
+        </div>
+        <div class="rounded-lg p-4" style="background-color:var(--ui-bg)">
+          <div class="text-xl font-bold" style="color:var(--ui-primary)">{pageCount}</div>
+          <div class="text-xs" style="color:var(--ui-text-muted)">Custom Pages</div>
+        </div>
+        <div class="rounded-lg p-4" style="background-color:var(--ui-bg)">
+          <div class="text-xl font-bold" style="color:var(--ui-primary)">{notificationCount}</div>
+          <div class="text-xs" style="color:var(--ui-text-muted)">Notifications</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Roles -->
+    {roleCount > 0 && (
+      <div
+        class="rounded-xl p-6 mb-6"
+        style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
+      >
+        <h3 class="text-sm font-semibold mb-4" style="color:var(--ui-text)">Domain Roles</h3>
+        <div class="space-y-3">
+          {(manifest.roles as any[]).map((role: any) => (
+            <div class="rounded-lg p-4" style="background-color:var(--ui-bg)">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-sm font-medium" style="color:var(--ui-text)">{role.label}</span>
+                <span class="text-[11px] px-2 py-0.5 rounded-full" style="background-color:rgba(240,237,232,0.06);color:var(--ui-text-muted)">
+                  {role.name}
+                </span>
+              </div>
+              <p class="text-xs" style="color:var(--ui-text-muted)">{role.description}</p>
+              <div class="flex flex-wrap gap-1 mt-2">
+                {(role.permissions as string[]).slice(0, 6).map((perm: string) => (
+                  <span class="text-[10px] px-1.5 py-0.5 rounded" style="background-color:rgba(59,143,232,0.1);color:var(--ui-accent)">
+                    {perm}
+                  </span>
+                ))}
+                {role.permissions.length > 6 && (
+                  <span class="text-[10px] px-1.5 py-0.5" style="color:var(--ui-text-placeholder)">
+                    +{role.permissions.length - 6} more
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <!-- App URL -->
+    <div
+      class="rounded-xl p-6"
+      style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
+    >
+      <h3 class="text-sm font-semibold mb-2" style="color:var(--ui-text)">App URL</h3>
+      <div class="flex items-center gap-2">
+        <code class="text-xs px-3 py-2 rounded-lg flex-1" style="background-color:var(--ui-bg);color:var(--ui-text-muted)">
+          /apps/{container.slug}
+        </code>
+      </div>
+    </div>
+  </div>
+</AppLayout>

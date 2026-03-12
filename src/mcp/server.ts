@@ -1,4 +1,4 @@
-console.error('[ai-ui] Starting MCP server...')
+console.error('[levelnine] Starting MCP server...')
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
@@ -10,14 +10,14 @@ import * as entityService from '../../server/modules/entities/service'
 import * as containerService from '../../server/modules/containers/service'
 import * as relationService from '../../server/modules/relations/service'
 
-process.on('uncaughtException', (err) => { console.error('[ai-ui] Uncaught:', err) })
-process.on('unhandledRejection', (err) => { console.error('[ai-ui] Unhandled rejection:', err) })
+process.on('uncaughtException', (err) => { console.error('[levelnine] Uncaught:', err) })
+process.on('unhandledRejection', (err) => { console.error('[levelnine] Unhandled rejection:', err) })
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4321'
 const catalogText = generatePrompt()
 
 const server = new McpServer({
-  name: 'ai-ui',
+  name: 'levelnine',
   version: '0.2.0',
 })
 
@@ -147,11 +147,11 @@ server.registerTool('get_entity_type', {
 })
 
 server.registerTool('create_entity_type', {
-  description: 'Create a new entity type with a name, optional description, and optional ai-ui JSON schema.',
+  description: 'Create a new entity type with a name, optional description, and optional LevelNine JSON schema.',
   inputSchema: {
     name: z.string().describe('Unique name for the entity type'),
     description: z.string().describe('Description of the entity type').optional(),
-    schema: z.string().describe('JSON string of the ai-ui UI spec for this entity type').optional(),
+    schema: z.string().describe('JSON string of the LevelNine UI spec for this entity type').optional(),
   },
 }, async ({ name, description, schema }) => {
   try {
@@ -167,7 +167,7 @@ server.registerTool('update_entity_type', {
     id: z.string().describe('UUID of the entity type to update'),
     name: z.string().describe('New name').optional(),
     description: z.string().describe('New description').optional(),
-    schema: z.string().describe('JSON string of the new ai-ui UI spec').optional(),
+    schema: z.string().describe('JSON string of the new LevelNine UI spec').optional(),
   },
 }, async ({ id, name, description, schema }) => {
   try {
@@ -410,9 +410,9 @@ server.registerTool('get_entity_relations', {
 try {
   const transport = new StdioServerTransport()
   await server.connect(transport)
-  console.error('[ai-ui] MCP server connected and ready')
+  console.error('[levelnine] MCP server connected and ready')
   setInterval(() => {}, 1 << 30)
 } catch (err) {
-  console.error('[ai-ui] Failed to start:', err)
+  console.error('[levelnine] Failed to start:', err)
   process.exit(1)
 }

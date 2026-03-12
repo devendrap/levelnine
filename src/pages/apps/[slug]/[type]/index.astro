@@ -1,7 +1,7 @@
 ---
 import AppLayout from '../../../../layouts/AppLayout.astro'
 import MasterDetailViewIsland from '../../../../islands/MasterDetailViewIsland.tsx'
-import { loadAppContext, getUIConfig } from '../../../../lib/apps/helpers'
+import { loadAppContext, getUIConfig, getPages } from '../../../../lib/apps/helpers'
 import * as entityService from '../../../../../server/modules/entities/service'
 
 const ctx = await loadAppContext(Astro)
@@ -47,6 +47,7 @@ if (uiConfig?.grid_config?.columns?.length) {
 
 const viewType = uiConfig?.view_type ?? 'full_page'
 const isMasterDetail = viewType === 'master_detail' || viewType === 'grid_only'
+const allPages = await getPages(container.id)
 ---
 
 <AppLayout
@@ -55,6 +56,7 @@ const isMasterDetail = viewType === 'master_detail' || viewType === 'grid_only'
   userName={user.email}
   userRole={user.role}
   activeType={typeName}
+  pages={allPages}
   breadcrumbs={[{ label }]}
 >
   {isMasterDetail ? (
@@ -90,7 +92,7 @@ const isMasterDetail = viewType === 'master_detail' || viewType === 'grid_only'
         <a
           href={`/apps/${container.slug}/${typeName}/new`}
           class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
-          style="background-color:var(--ui-primary);color:#0B0F1A"
+          style="background-color:var(--ui-primary);color:var(--ui-text-on-primary)"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>

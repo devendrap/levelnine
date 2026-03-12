@@ -1,0 +1,116 @@
+---
+import AppLayout from '../../../../layouts/AppLayout.astro'
+import { loadAppContext, getPages } from '../../../../lib/apps/helpers'
+import { query } from '../../../../../server/db/index'
+import AppInviteUserIsland from '../../../../islands/AppInviteUserIsland'
+
+const ctx = await loadAppContext(Astro)
+if (ctx instanceof Response) return ctx
+const { container, entityTypes, user } = ctx
+
+// Admin only
+if (user.role !== 'admin') {
+  return Astro.redirect(`/apps/${container.slug}`)
+}
+
+const allPages = await getPages(container.id)
+
+// Get all app users for this container
+const usersResult = await query(
+  'SELECT id, email, name, role, domain_role, is_active, created_at FROM app_users WHERE container_id = $1 ORDER BY created_at DESC',
+  [container.id],
+)
+const appUsers = usersResult.rows
+
+// Get available domain roles from manifest
+const domainRoles = ((container.manifest as any)?.roles ?? []).map((r: any) => ({
+  name: r.name,
+  label: r.label,
+}))
+---
+
+<AppLayout
+  container={container}
+  entityTypes={entityTypes}
+  userName={user.email}
+  userRole={user.role}
+  activePage="admin-users"
+  pages={allPages}
+  breadcrumbs={[{ label: 'Admin' }, { label: 'Users' }]}
+>
+  <div class="max-w-4xl mx-auto px-8 py-8">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-xl font-bold" style="color:var(--ui-text)">Users</h1>
+        <p class="text-sm mt-1" style="color:var(--ui-text-muted)">
+          Manage users for {container.name}
+        </p>
+      </div>
+      <AppInviteUserIsland
+        client:only="solid-js"
+        slug={container.slug!}
+        domainRoles={domainRoles}
+      />
+    </div>
+
+    <!-- Users table -->
+    <div class="rounded-xl overflow-hidden" style="border:1px solid var(--ui-border)">
+      {appUsers.length === 0 ? (
+        <div class="px-6 py-10 text-center" style="background-color:var(--ui-bg-subtle)">
+          <p class="text-sm" style="color:var(--ui-text-muted)">No users yet. Invite the first user above.</p>
+        </div>
+      ) : (
+        <table class="w-full">
+          <thead>
+            <tr style="background-color:var(--ui-bg-subtle)">
+              <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Name</th>
+              <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Email</th>
+              <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Role</th>
+              <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Domain Role</th>
+              <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Status</th>
+              <th class="text-left text-[11px] font-semibold uppercase tracking-wider px-5 py-3" style="color:var(--ui-text-muted)">Joined</th>
+            </tr>
+          </thead>
+          <tbody>
+            {appUsers.map((u: any) => (
+              <tr style="border-top:1px solid var(--ui-border)">
+                <td class="px-5 py-3">
+                  <span class="text-sm font-medium" style="color:var(--ui-text)">{u.name}</span>
+                </td>
+                <td class="px-5 py-3">
+                  <span class="text-xs" style="color:var(--ui-text-muted)">{u.email}</span>
+                </td>
+                <td class="px-5 py-3">
+                  <span
+                    class="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                    style={`background-color:${u.role === 'admin' ? 'rgba(212,164,74,0.1)' : 'rgba(240,237,232,0.06)'};color:${u.role === 'admin' ? 'var(--ui-primary)' : 'var(--ui-text-muted)'}`}
+                  >
+                    {u.role}
+                  </span>
+                </td>
+                <td class="px-5 py-3">
+                  <span class="text-xs" style="color:var(--ui-text-muted)">
+                    {u.domain_role ? u.domain_role.replace(/_/g, ' ') : '-'}
+                  </span>
+                </td>
+                <td class="px-5 py-3">
+                  <span
+                    class="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                    style={`background-color:${u.is_active ? 'var(--ui-success-bg)' : 'var(--ui-error-bg)'};color:${u.is_active ? 'var(--ui-success)' : 'var(--ui-error)'}`}
+                  >
+                    {u.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td class="px-5 py-3">
+                  <span class="text-xs" style="color:var(--ui-text-placeholder)">
+                    {new Date(u.created_at).toLocaleDateString()}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  </div>
+</AppLayout>

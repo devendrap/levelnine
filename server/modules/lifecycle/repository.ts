@@ -16,7 +16,7 @@ export interface LifecyclePolicy {
 
 export async function findByContainer(containerId: string): Promise<LifecyclePolicy[]> {
   const result = await query<LifecyclePolicy>(
-    'SELECT * FROM lifecycle_policies WHERE container_id = $1 AND is_active = true ORDER BY entity_type',
+    'SELECT * FROM sys_lifecycle_policies WHERE container_id = $1 AND is_active = true ORDER BY entity_type',
     [containerId],
   )
   return result.rows
@@ -27,7 +27,7 @@ export async function findByContainerAndType(
   entityType: string,
 ): Promise<LifecyclePolicy[]> {
   const result = await query<LifecyclePolicy>(
-    'SELECT * FROM lifecycle_policies WHERE container_id = $1 AND entity_type = $2 AND is_active = true',
+    'SELECT * FROM sys_lifecycle_policies WHERE container_id = $1 AND entity_type = $2 AND is_active = true',
     [containerId, entityType],
   )
   return result.rows
@@ -43,7 +43,7 @@ export async function insertPolicy(data: {
   retention_days?: number
 }): Promise<LifecyclePolicy> {
   const result = await query<LifecyclePolicy>(
-    `INSERT INTO lifecycle_policies (container_id, entity_type, policy_name, trigger_type, trigger_condition, action, retention_days)
+    `INSERT INTO sys_lifecycle_policies (container_id, entity_type, policy_name, trigger_type, trigger_condition, action, retention_days)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (container_id, entity_type, policy_name) DO UPDATE SET
        trigger_type = EXCLUDED.trigger_type, trigger_condition = EXCLUDED.trigger_condition,
@@ -56,5 +56,5 @@ export async function insertPolicy(data: {
 }
 
 export async function deletePolicy(id: string): Promise<void> {
-  await query('DELETE FROM lifecycle_policies WHERE id = $1', [id])
+  await query('DELETE FROM sys_lifecycle_policies WHERE id = $1', [id])
 }

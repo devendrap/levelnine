@@ -16,7 +16,7 @@ services:
       - S3_REGION=us-east-1
       - S3_ACCESS_KEY=aiui
       - S3_SECRET_KEY=aiui_dev_secret
-      - S3_BUCKET=ai-ui-uploads
+      - S3_BUCKET=levelnine-uploads
       - BASE_URL=http://localhost:4321
     depends_on:
       postgres:

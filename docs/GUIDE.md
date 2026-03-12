@@ -1,4 +1,4 @@
-# ai-ui: From Prompt to Production App
+# LevelNine: From Prompt to Production App
 
 A step-by-step guide to building, deploying, and managing data-driven applications using LLM-powered container design.
 
@@ -67,7 +67,7 @@ The app runs at **http://localhost:4321**.
 | `S3_ENDPOINT` | Yes | `http://localhost:9000` | MinIO/S3 endpoint |
 | `S3_ACCESS_KEY` | Yes | `aiui` | S3 access key |
 | `S3_SECRET_KEY` | Yes | `aiui_dev_secret` | S3 secret key |
-| `S3_BUCKET` | Yes | `ai-ui-uploads` | S3 bucket name |
+| `S3_BUCKET` | Yes | `LevelNine-uploads` | S3 bucket name |
 | `OPENAI_API_KEY` | No | — | OpenAI provider |
 | `XAI_API_KEY` | No | — | xAI/Grok provider |
 | `GEMINI_API_KEY` | No | — | Google Gemini provider |
@@ -157,7 +157,7 @@ If an entity type needs a more detailed schema:
 
 1. Click **"Enhance"** on the entity type row
 2. You're taken back to the Chat tab with a pre-filled prompt asking the LLM to generate a full JSON schema for that specific type
-3. The LLM responds with a detailed ai-ui component spec (forms, fields, validation)
+3. The LLM responds with a detailed LevelNine component spec (forms, fields, validation)
 4. Click **"Save All to Manifest"** to update that type's schema
 
 ### Remove or Re-add Types
@@ -187,7 +187,7 @@ For entity types that don't have schemas yet (showing "missing" status), you can
 
 ### What a Schema Looks Like
 
-Schemas are ai-ui JSON specs — hierarchical component trees that the Renderer turns into interactive forms:
+Schemas are LevelNine JSON specs — hierarchical component trees that the Renderer turns into interactive forms:
 
 ```json
 {
@@ -387,7 +387,7 @@ curl -X DELETE http://localhost:4321/api/v1/apps/{slug}/users/{userId} \
 4. Enter a name for the record
 5. Click **Save**
 
-The form uses the ai-ui Renderer — all 33 components are available: Input, Select, Checkbox, DatePicker, FileUpload, Table, Tabs, and more. Field values are bound via the `bind` prop to a reactive form data store.
+The form uses the LevelNine Renderer — all 33 components are available: Input, Select, Checkbox, DatePicker, FileUpload, Table, Tabs, and more. Field values are bound via the `bind` prop to a reactive form data store.
 
 ### Edit an Entity
 
@@ -515,7 +515,7 @@ This starts three services:
 ### Building the Docker Image
 
 ```bash
-docker build -t ai-ui .
+docker build -t LevelNine .
 ```
 
 The multi-stage Dockerfile:

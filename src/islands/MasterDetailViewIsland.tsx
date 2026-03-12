@@ -1,4 +1,4 @@
-import { createSignal, Show, For, createMemo, onMount, createEffect } from 'solid-js'
+import { createSignal, Show, For, createMemo, onMount, createEffect, onCleanup } from 'solid-js'
 import { useStore } from '@nanostores/solid'
 import { $formData, resetFormData, seedFormData } from '../stores/ui'
 import { Renderer } from '../renderer/Renderer'
@@ -69,17 +69,22 @@ export default function MasterDetailViewIsland(props: {
       setSelectedEntity(entity)
       setName(entity.name ?? '')
       setStatus(entity.status ?? 'draft')
-      // Fetch full entity content for form
+
+      // Fetch full entity content — use cancellation to prevent race conditions
+      let cancelled = false
+      onCleanup(() => { cancelled = true })
+
       fetch(`/api/v1/entities/${entity.id}`)
         .then(r => r.json())
         .then(full => {
-          // Use a separate formData store for detail — reset first, then seed
-          // We need to preserve the __md_selected_id key
+          if (cancelled) return
           const selId = $formData.get()[SELECTED_KEY]
           seedFormData(full.content ?? {})
           $formData.setKey(SELECTED_KEY, selId)
         })
-        .catch(() => {})
+        .catch((err) => {
+          if (!cancelled) setError(err.message ?? 'Failed to load entity')
+        })
     }
   })
 
@@ -130,7 +135,7 @@ export default function MasterDetailViewIsland(props: {
         <a
           href={`/apps/${props.slug}/${props.typeName}/new`}
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
-          style={{ 'background-color': 'var(--ui-primary)', color: '#0B0F1A' }}
+          style={{ 'background-color': 'var(--ui-primary)', color: 'var(--ui-text-on-primary)' }}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -194,7 +199,7 @@ export default function MasterDetailViewIsland(props: {
                     onClick={save}
                     disabled={saving()}
                     class="px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all hover:opacity-90 disabled:opacity-40"
-                    style={{ 'background-color': 'var(--ui-primary)', color: '#0B0F1A' }}
+                    style={{ 'background-color': 'var(--ui-primary)', color: 'var(--ui-text-on-primary)' }}
                   >
                     {saving() ? 'Saving...' : 'Save'}
                   </button>
@@ -229,11 +234,13 @@ export default function MasterDetailViewIsland(props: {
                       class="w-full bg-transparent outline-none text-xs px-2 py-1.5 rounded-lg cursor-pointer"
                       style={{ color: 'var(--ui-text)', border: '1px solid var(--ui-border)', 'background-color': 'var(--ui-bg-subtle)' }}
                     >
-                      {statuses.map(s => (
-                        <option value={s} style={{ background: 'var(--ui-bg)', color: 'var(--ui-text)' }}>
-                          {s.charAt(0).toUpperCase() + s.slice(1)}
-                        </option>
-                      ))}
+                      <For each={statuses}>
+                        {(s) => (
+                          <option value={s} style={{ background: 'var(--ui-bg)', color: 'var(--ui-text)' }}>
+                            {s.charAt(0).toUpperCase() + s.slice(1)}
+                          </option>
+                        )}
+                      </For>
                     </select>
                   </div>
                 </div>

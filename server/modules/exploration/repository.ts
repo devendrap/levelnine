@@ -18,12 +18,12 @@ import type {
 
 export async function findAllDimensions(activeOnly = true): Promise<DimensionConfig[]> {
   const where = activeOnly ? 'WHERE is_active = true' : ''
-  const result = await query<DimensionConfig>(`SELECT * FROM dimension_configs ${where} ORDER BY sort_order`)
+  const result = await query<DimensionConfig>(`SELECT * FROM exp_dimensions ${where} ORDER BY sort_order`)
   return result.rows
 }
 
 export async function findDimensionByKey(dimension: string): Promise<DimensionConfig | null> {
-  const result = await query<DimensionConfig>('SELECT * FROM dimension_configs WHERE dimension = $1', [dimension])
+  const result = await query<DimensionConfig>('SELECT * FROM exp_dimensions WHERE dimension = $1', [dimension])
   return result.rows[0] ?? null
 }
 
@@ -32,13 +32,13 @@ export async function findDimensionByKey(dimension: string): Promise<DimensionCo
 // ============================================================================
 
 export async function findRunById(id: string): Promise<ExplorationRun | null> {
-  const result = await query<ExplorationRun>('SELECT * FROM exploration_runs WHERE id = $1', [id])
+  const result = await query<ExplorationRun>('SELECT * FROM exp_runs WHERE id = $1', [id])
   return result.rows[0] ?? null
 }
 
 export async function findActiveRun(containerId: string): Promise<ExplorationRun | null> {
   const result = await query<ExplorationRun>(
-    `SELECT * FROM exploration_runs WHERE container_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+    `SELECT * FROM exp_runs WHERE container_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
     [containerId],
   )
   return result.rows[0] ?? null
@@ -46,7 +46,7 @@ export async function findActiveRun(containerId: string): Promise<ExplorationRun
 
 export async function findRunsByContainer(containerId: string): Promise<ExplorationRun[]> {
   const result = await query<ExplorationRun>(
-    'SELECT * FROM exploration_runs WHERE container_id = $1 ORDER BY created_at DESC',
+    'SELECT * FROM exp_runs WHERE container_id = $1 ORDER BY created_at DESC',
     [containerId],
   )
   return result.rows
@@ -57,7 +57,7 @@ export async function insertRun(data: {
   phase?: ExplorationPhase
 }): Promise<ExplorationRun> {
   const result = await query<ExplorationRun>(
-    `INSERT INTO exploration_runs (container_id, phase) VALUES ($1, $2) RETURNING *`,
+    `INSERT INTO exp_runs (container_id, phase) VALUES ($1, $2) RETURNING *`,
     [data.container_id, data.phase ?? 'first_pass'],
   )
   return result.rows[0]
@@ -88,7 +88,7 @@ export async function updateRun(
   sets.push('updated_at = NOW()')
   params.push(id)
   const result = await query<ExplorationRun>(
-    `UPDATE exploration_runs SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+    `UPDATE exp_runs SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
     params,
   )
   return result.rows[0] ?? null
@@ -100,14 +100,14 @@ export async function updateRun(
 
 export async function findStepsByRun(runId: string): Promise<ExplorationStep[]> {
   const result = await query<ExplorationStep>(
-    'SELECT * FROM exploration_steps WHERE run_id = $1 ORDER BY created_at',
+    'SELECT * FROM exp_steps WHERE run_id = $1 ORDER BY created_at',
     [runId],
   )
   return result.rows
 }
 
 export async function findStepById(id: string): Promise<ExplorationStep | null> {
-  const result = await query<ExplorationStep>('SELECT * FROM exploration_steps WHERE id = $1', [id])
+  const result = await query<ExplorationStep>('SELECT * FROM exp_steps WHERE id = $1', [id])
   return result.rows[0] ?? null
 }
 
@@ -117,7 +117,7 @@ export async function findStepByRunDimensionStep(
   step: StepName,
 ): Promise<ExplorationStep | null> {
   const result = await query<ExplorationStep>(
-    'SELECT * FROM exploration_steps WHERE run_id = $1 AND dimension = $2 AND step = $3',
+    'SELECT * FROM exp_steps WHERE run_id = $1 AND dimension = $2 AND step = $3',
     [runId, dimension, step],
   )
   return result.rows[0] ?? null
@@ -129,7 +129,7 @@ export async function insertStep(data: {
   step: StepName
 }): Promise<ExplorationStep> {
   const result = await query<ExplorationStep>(
-    `INSERT INTO exploration_steps (run_id, dimension, step) VALUES ($1, $2, $3) RETURNING *`,
+    `INSERT INTO exp_steps (run_id, dimension, step) VALUES ($1, $2, $3) RETURNING *`,
     [data.run_id, data.dimension, data.step],
   )
   return result.rows[0]
@@ -170,7 +170,7 @@ export async function updateStep(
   sets.push('updated_at = NOW()')
   params.push(id)
   const result = await query<ExplorationStep>(
-    `UPDATE exploration_steps SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+    `UPDATE exp_steps SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
     params,
   )
   return result.rows[0] ?? null
@@ -187,7 +187,7 @@ export async function insertSnapshot(data: {
   manifest: ContainerManifest
 }): Promise<ManifestSnapshot> {
   const result = await query<ManifestSnapshot>(
-    `INSERT INTO manifest_snapshots (container_id, run_id, dimension, manifest) VALUES ($1, $2, $3, $4) RETURNING *`,
+    `INSERT INTO exp_snapshots (container_id, run_id, dimension, manifest) VALUES ($1, $2, $3, $4) RETURNING *`,
     [data.container_id, data.run_id, data.dimension, JSON.stringify(data.manifest)],
   )
   return result.rows[0]
@@ -195,7 +195,7 @@ export async function insertSnapshot(data: {
 
 export async function findSnapshotsByRun(runId: string): Promise<ManifestSnapshot[]> {
   const result = await query<ManifestSnapshot>(
-    'SELECT * FROM manifest_snapshots WHERE run_id = $1 ORDER BY created_at',
+    'SELECT * FROM exp_snapshots WHERE run_id = $1 ORDER BY created_at',
     [runId],
   )
   return result.rows
@@ -203,7 +203,7 @@ export async function findSnapshotsByRun(runId: string): Promise<ManifestSnapsho
 
 export async function findSnapshotsByContainer(containerId: string): Promise<ManifestSnapshot[]> {
   const result = await query<ManifestSnapshot>(
-    'SELECT * FROM manifest_snapshots WHERE container_id = $1 ORDER BY created_at',
+    'SELECT * FROM exp_snapshots WHERE container_id = $1 ORDER BY created_at',
     [containerId],
   )
   return result.rows

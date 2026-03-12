@@ -117,7 +117,7 @@ export default function AppLoginIsland(props: { slug: string; appName: string })
             type="submit"
             disabled={loading()}
             class="mt-2 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
-            style={{ 'background-color': 'var(--ui-primary)', color: '#0B0F1A', 'box-shadow': 'var(--ui-shadow)' }}
+            style={{ 'background-color': 'var(--ui-primary)', color: 'var(--ui-text-on-primary)', 'box-shadow': 'var(--ui-shadow)' }}
           >
             {loading() ? (mode() === 'login' ? 'Signing in...' : 'Creating account...') : (mode() === 'login' ? 'Sign in' : 'Create account')}
           </button>

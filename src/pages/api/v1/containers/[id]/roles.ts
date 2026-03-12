@@ -25,7 +25,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   try {
     requireAnyAuth(request)
     const result = await query(
-      'SELECT id, name, label, description, permissions FROM container_roles WHERE container_id = $1 AND is_active = true ORDER BY name',
+      'SELECT id, name, label, description, permissions FROM cfg_roles WHERE container_id = $1 AND is_active = true ORDER BY name',
       [params.id!],
     )
     return Response.json(result.rows)

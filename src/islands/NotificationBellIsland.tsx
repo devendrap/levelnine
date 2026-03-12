@@ -32,18 +32,17 @@ export default function NotificationBellIsland() {
     } catch { /* silent */ }
   }
 
-  onMount(() => {
-    fetchNotifications()
-    const interval = setInterval(fetchNotifications, 30000)
-    onCleanup(() => clearInterval(interval))
-  })
-
   // Close on outside click
   let containerRef: HTMLDivElement | undefined
   const handleClick = (e: MouseEvent) => {
     if (containerRef && !containerRef.contains(e.target as Node)) setOpen(false)
   }
+
   onMount(() => {
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 30000)
+    onCleanup(() => clearInterval(interval))
+
     document.addEventListener('click', handleClick)
     onCleanup(() => document.removeEventListener('click', handleClick))
   })

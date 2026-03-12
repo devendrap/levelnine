@@ -1,11 +1,10 @@
-import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import * as repo from './repository'
 import * as containerRepo from '../containers/repository'
 import type { AppUser } from '../../core/types/index'
+import { hashPassword, verifyPassword } from '../../core/password'
 
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../../core/config'
-const SALT_ROUNDS = 10
 
 export interface AppAuthPayload {
   userId: string
@@ -68,7 +67,7 @@ export async function register(data: {
   const existing = await repo.findByEmail(data.email, container.id)
   if (existing) throw new AppAuthError('Email already registered for this app', 409)
 
-  const password_hash = await bcrypt.hash(data.password, SALT_ROUNDS)
+  const password_hash = await hashPassword(data.password)
   const user = await repo.insert({
     container_id: container.id,
     email: data.email,
@@ -92,7 +91,7 @@ export async function login(data: {
   const user = await repo.findByEmail(data.email, container.id)
   if (!user || !user.is_active) throw new AppAuthError('Invalid credentials', 401)
 
-  const valid = await bcrypt.compare(data.password, user.password_hash)
+  const valid = await verifyPassword(data.password, user.password_hash)
   if (!valid) throw new AppAuthError('Invalid credentials', 401)
 
   return { user: sanitize(user), token: signToken(user) }
@@ -125,7 +124,7 @@ export async function inviteUser(data: {
 
   // Generate a temporary password — user should change on first login
   const tempPassword = crypto.randomUUID().slice(0, 12)
-  const password_hash = await bcrypt.hash(tempPassword, SALT_ROUNDS)
+  const password_hash = await hashPassword(tempPassword)
 
   const user = await repo.insert({
     container_id: data.containerId,
@@ -137,9 +136,9 @@ export async function inviteUser(data: {
     invited_by: data.invitedBy,
   })
 
-  // TODO: send tempPassword via email (C2 notification engine) instead of API response
-  console.info(`[invite] Temp password for ${data.email}: ${tempPassword}`)
-  return { user: sanitize(user) }
+  // TODO: send tempPassword via email (C2 notification engine)
+  // Never log passwords — deliver via notification engine when ready
+  return { user: sanitize(user), tempPassword }
 }
 
 export async function updateUser(id: string, data: { role?: string; domain_role?: string; is_active?: boolean }) {

@@ -184,7 +184,7 @@ export default function AppEntityFormIsland(props: {
               onClick={save}
               disabled={saving()}
               class="px-5 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-90 disabled:opacity-40"
-              style={{ "background-color": "var(--ui-primary)", color: "#0B0F1A" }}
+              style={{ "background-color": "var(--ui-primary)", color: "var(--ui-text-on-primary)" }}
             >
               {saving() ? 'Saving...' : isEdit ? 'Save Changes' : `Create ${label}`}
             </button>

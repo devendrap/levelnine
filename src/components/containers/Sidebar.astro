@@ -2,6 +2,8 @@
 import type { Container } from '../../lib/containers/types'
 import SidebarCreateForm from './SidebarCreateForm.tsx'
 import SidebarDeleteDialog from './SidebarDeleteDialog.tsx'
+import { SidebarProgress } from '../../islands/ManifestCountIsland'
+import { statusBadgeStyle } from '../../lib/ui-colors'
 
 interface Props {
   containers: Container[]
@@ -9,16 +11,6 @@ interface Props {
 }
 
 const { containers, selectedId } = Astro.props
-
-function statusBadge(status: string) {
-  const colors: Record<string, { bg: string; fg: string }> = {
-    draft: { bg: 'rgba(240,237,232,0.08)', fg: 'var(--ui-text-muted)' },
-    review: { bg: 'rgba(228,168,50,0.12)', fg: '#E4A832' },
-    locked: { bg: 'rgba(34,197,94,0.12)', fg: '#22C55E' },
-  }
-  const c = colors[status] ?? colors.draft
-  return `background-color:${c.bg};color:${c.fg}`
-}
 ---
 
 <aside
@@ -61,22 +53,30 @@ function statusBadge(status: string) {
             >
               {c.name}
             </span>
-            <span class="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded mr-6" style={statusBadge(c.status)}>
+            <span class="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded mr-6" style={statusBadgeStyle(c.status)}>
               {c.status}
             </span>
           </div>
           {c.manifest?.entity_types?.length ? (
-            <div class="flex items-center gap-1.5 mt-1">
-              <div class="h-1 rounded-full flex-1" style="background-color:rgba(240,237,232,0.06)">
-                <div
-                  class="h-1 rounded-full transition-all"
-                  style={`background-color:var(--ui-primary);width:${(c.manifest.entity_types!.filter(e => e.reviewed).length / c.manifest.entity_types!.length) * 100}%`}
-                />
+            selectedId === c.id ? (
+              <SidebarProgress
+                client:only="solid-js"
+                initialReady={c.manifest.entity_types!.filter(e => e.schema).length}
+                initialTotal={c.manifest.entity_types!.length}
+              />
+            ) : (
+              <div class="flex items-center gap-1.5 mt-1">
+                <div class="h-1 rounded-full flex-1" style="background-color:rgba(240,237,232,0.06)">
+                  <div
+                    class="h-1 rounded-full transition-all"
+                    style={`background-color:var(--ui-primary);width:${(c.manifest.entity_types!.filter(e => e.schema).length / c.manifest.entity_types!.length) * 100}%`}
+                  />
+                </div>
+                <span class="text-[10px] tabular-nums" style="color:var(--ui-text-muted)">
+                  {c.manifest.entity_types!.filter(e => e.schema).length}/{c.manifest.entity_types!.length}
+                </span>
               </div>
-              <span class="text-[10px] tabular-nums" style="color:var(--ui-text-muted)">
-                {c.manifest.entity_types!.filter(e => e.reviewed).length}/{c.manifest.entity_types!.length}
-              </span>
-            </div>
+            )
           ) : null}
         </a>
         <!-- Plain HTML delete button — no island needed -->

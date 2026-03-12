@@ -73,6 +73,11 @@ export async function listEntities(filters: {
   })
 }
 
+/** Batch count entities per type for a container — single GROUP BY query */
+export async function countEntitiesByType(containerId: string) {
+  return repo.countEntitiesByType(containerId)
+}
+
 export async function createEntity(data: {
   entity_type_name?: string
   entity_type_id?: string
@@ -148,7 +153,7 @@ export async function createEntity(data: {
         entity_name: entity.name,
         action: 'create',
         new_values: data.content,
-      }).catch(e => console.error('[notify]', e.message))
+      }).catch(e => console.error(`[notify] Failed for create ${et.name}/${entity.id}:`, e.message))
     }
   }
 
@@ -232,7 +237,7 @@ export async function updateEntity(
         action,
         field_changes: data.content ?? {},
         new_values: { ...entity.content, status: entity.status },
-      }).catch(e => console.error('[notify]', e.message))
+      }).catch(e => console.error(`[notify] Failed for ${action} ${et.name}/${entity.id}:`, e.message))
     }
   }
 

@@ -1,0 +1,74 @@
+---
+import AppLayout from '../../../../layouts/AppLayout.astro'
+import { loadAppContext, getPageByRoute, getPages } from '../../../../lib/apps/helpers'
+import { resolveWidget, type ResolvedWidget } from '../../../../lib/apps/widgets'
+import WidgetRenderer from '../../../../components/apps/WidgetRenderer.astro'
+
+const ctx = await loadAppContext(Astro)
+if (ctx instanceof Response) return ctx
+const { container, entityTypes, user } = ctx
+
+const pageRoute = Astro.params.page!
+const page = await getPageByRoute(container.id, pageRoute)
+
+if (!page) {
+  return Astro.redirect(`/apps/${container.slug}`)
+}
+
+// Check access_roles if defined
+if (page.access_roles && page.access_roles.length > 0) {
+  const userDomainRole = (user as any).domain_role
+  if (userDomainRole && !page.access_roles.includes(userDomainRole) && user.role !== 'admin') {
+    return Astro.redirect(`/apps/${container.slug}`)
+  }
+}
+
+// Resolve all widgets server-side
+const resolvedSections = await Promise.all(
+  page.sections.map(async (section: any) => ({
+    title: section.title,
+    width: section.width ?? 'full',
+    widget: await resolveWidget(section.widget, container.id, container.slug!),
+  }))
+)
+
+const allPages = await getPages(container.id)
+
+const layoutClass = page.layout === 'single'
+  ? 'space-y-6'
+  : page.layout === 'two_column'
+  ? 'grid grid-cols-1 lg:grid-cols-2 gap-6'
+  : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+---
+
+<AppLayout
+  container={container}
+  entityTypes={entityTypes}
+  userName={user.email}
+  userRole={user.role}
+  activePage={pageRoute}
+  pages={allPages}
+>
+  <div class="max-w-6xl mx-auto px-8 py-8">
+    <div class="mb-6">
+      <h1 class="text-xl font-bold" style="color:var(--ui-text)">{page.label}</h1>
+    </div>
+
+    <div class={layoutClass}>
+      {resolvedSections.map((section: any) => {
+        const colSpan = page.layout === 'single' ? ''
+          : section.width === 'full'
+          ? (page.layout === 'two_column' ? 'lg:col-span-2' : 'md:col-span-2 lg:col-span-3')
+          : section.width === 'third' ? '' : ''
+        return (
+          <div class={colSpan}>
+            {section.title && (
+              <h2 class="text-sm font-semibold mb-3" style="color:var(--ui-text)">{section.title}</h2>
+            )}
+            <WidgetRenderer widget={section.widget} />
+          </div>
+        )
+      })}
+    </div>
+  </div>
+</AppLayout>

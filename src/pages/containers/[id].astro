@@ -22,9 +22,11 @@ let messages: Message[] = []
 
 try {
   authenticate(Astro.request)
-  containers = await containerService.listContainers()
-  container = await containerService.getContainer(id!) as any
-  messages = await containerService.getMessages(id!) as any
+  ;[containers, container, messages] = await Promise.all([
+    containerService.listContainers(),
+    containerService.getContainer(id!) as any,
+    containerService.getMessages(id!) as any,
+  ])
 } catch (e: any) {
   if (e.message === 'No token provided' || e.message === 'Invalid token') {
     return Astro.redirect('/login')
@@ -37,7 +39,7 @@ let initialInput = ''
 let autoSend = ''
 
 if (enhanceName) {
-  const template = import.meta.env.ENHANCE_PROMPT ?? 'Generate a complete type package for "{{name}}". Respond with a JSON object containing: ui_spec (ai-ui rendering spec using {type, props, children} nodes), data_schema (JSON Schema for direct fields only — no embedded related types), field_metadata (default/searchable/sortable/show_in_list per field), related_types (from manifest relations), document_slots (from manifest documents), report_relevance (from manifest reports). Use components: Container, Tabs, Stack, Grid, Select, DatePicker, FileUpload, RichText, Table, Input, TextArea, Badge. Make it production-ready.'
+  const template = import.meta.env.ENHANCE_PROMPT ?? 'Generate a complete type package for "{{name}}". Respond with a JSON object containing: ui_spec (LevelNine rendering spec using {type, props, children} nodes), data_schema (JSON Schema for direct fields only — no embedded related types), field_metadata (default/searchable/sortable/show_in_list per field), related_types (from manifest relations), document_slots (from manifest documents), report_relevance (from manifest reports). Use components: Container, Tabs, Stack, Grid, Select, DatePicker, FileUpload, RichText, Table, Input, TextArea, Badge. Make it production-ready.'
   initialInput = template.replace(/\{\{name\}\}/g, enhanceName)
 }
 
@@ -56,7 +58,7 @@ if (action === 'generate-schemas') {
 }
 ---
 
-<Base title={`ai-ui — ${container.name}`}>
+<Base title={`LevelNine — ${container.name}`}>
   <style is:inline set:html={CM_STYLES} />
   <div class="dark flex h-screen" style="background-color:var(--ui-bg);font-family:var(--ui-font)">
     {/* Sidebar with collapse support */}

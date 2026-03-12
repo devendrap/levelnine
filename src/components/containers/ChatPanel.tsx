@@ -2,6 +2,7 @@ import { createSignal, createEffect, Show, For, onMount } from 'solid-js'
 import { SchemaPreviewPanel } from '../SchemaPreviewPanel'
 import { parseMessageSegments, parseEntityTypesFromMessage } from '../../lib/containers/parser'
 import type { Message, MessageSegment } from '../../lib/containers/types'
+import { $provider } from '../../stores/manifest'
 import Toast, { showToast } from './Toast'
 import { clean } from '../../lib/sanitize'
 
@@ -21,10 +22,7 @@ export default function ChatPanel(props: {
   let chatEnd: HTMLDivElement | undefined
   let inputRef: HTMLTextAreaElement | undefined
 
-  const provider = () => {
-    const el = document.getElementById('provider-select') as HTMLSelectElement | null
-    return el?.value ?? 'ollama'
-  }
+  const provider = () => $provider.get()
 
   const scrollToBottom = () => {
     setTimeout(() => chatEnd?.scrollIntoView({ behavior: 'smooth' }), 50)
@@ -431,7 +429,7 @@ export default function ChatPanel(props: {
                     width="16" height="16"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke={input().trim() ? "#0B0F1A" : "var(--ui-text-muted)"}
+                    stroke={input().trim() ? "var(--ui-text-on-primary)" : "var(--ui-text-muted)"}
                     stroke-width="2.5"
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -442,7 +440,7 @@ export default function ChatPanel(props: {
                   <Show when={input().trim()}>
                     <span
                       class="text-xs font-semibold"
-                      style={{ color: "#0B0F1A", "letter-spacing": "0.02em" }}
+                      style={{ color: "var(--ui-text-on-primary)", "letter-spacing": "0.02em" }}
                     >
                       Send
                     </span>
@@ -454,7 +452,7 @@ export default function ChatPanel(props: {
             {/* Subtle branding line */}
             <div class="flex items-center justify-center mt-2.5">
               <span class="text-[10px]" style={{ color: "rgba(240,237,232,0.15)" }}>
-                ai-ui schema architect
+                LevelNine schema architect
               </span>
             </div>
           </div>

@@ -1,14 +1,41 @@
-import { createSignal, Show, onMount, onCleanup } from 'solid-js'
+import { createSignal, createEffect, Show, onMount, onCleanup } from 'solid-js'
 import type { JSX } from 'solid-js'
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 export function Dialog(props: { title: string; open?: boolean; trigger?: string; children?: JSX.Element }) {
   const [visible, setVisible] = createSignal(props.open ?? false)
+  let dialogRef: HTMLDivElement | undefined
+  let previousFocus: HTMLElement | null = null
 
-  const close = () => setVisible(false)
+  const close = () => {
+    setVisible(false)
+    previousFocus?.focus()
+  }
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && visible()) close()
+    if (e.key === 'Escape' && visible()) { close(); return }
+    if (e.key === 'Tab' && visible() && dialogRef) {
+      const focusable = Array.from(dialogRef.querySelectorAll<HTMLElement>(FOCUSABLE))
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus()
+      }
+    }
   }
+
+  // Auto-focus first focusable element when dialog opens
+  createEffect(() => {
+    if (visible() && dialogRef) {
+      previousFocus = document.activeElement as HTMLElement
+      const first = dialogRef.querySelector<HTMLElement>(FOCUSABLE)
+      first?.focus()
+    }
+  })
 
   onMount(() => document.addEventListener('keydown', onKeyDown))
   onCleanup(() => document.removeEventListener('keydown', onKeyDown))
@@ -43,6 +70,7 @@ export function Dialog(props: { title: string; open?: boolean; trigger?: string;
           onClick={(e) => { if (e.target === e.currentTarget) close() }}
         >
           <div
+            ref={dialogRef}
             class="rounded-xl border p-6 shadow-lg w-full max-w-md mx-4 relative"
             style={{
               "background-color": "var(--ui-card-bg)",

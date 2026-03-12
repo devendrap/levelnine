@@ -33,7 +33,7 @@ export async function triggerNotifications(event: {
   }>(
     `SELECT name, trigger_event, trigger_condition, recipients, channel, template,
             escalation_minutes, escalation_to
-     FROM container_notifications
+     FROM cfg_notifications
      WHERE container_id = $1
        AND trigger_entity_type = $2
        AND trigger_event = ANY($3)`,
@@ -90,14 +90,23 @@ function mapActionToTriggerEvents(action: string): string[] {
  */
 function evaluateCondition(condition: string, event: Record<string, any>): boolean {
   const match = condition.match(/^(\w+)\s*(==|!=)\s*'([^']*)'$/)
-  if (!match) return true // can't parse = pass through
+  if (!match) {
+    console.warn(`[trigger] Unparseable condition: "${condition}" — skipping rule`)
+    return false // unparseable conditions should NOT pass through
+  }
 
   const [, field, op, value] = match
+
+  // Prevent prototype pollution — only allow simple alphanumeric field names
+  if (field.startsWith('__') || field === 'constructor' || field === 'prototype') {
+    return false
+  }
+
   const actual = event.new_values?.[field] ?? event.field_changes?.[field]
 
   if (op === '==') return actual === value
   if (op === '!=') return actual !== value
-  return true
+  return false
 }
 
 /**

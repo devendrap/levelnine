@@ -7,19 +7,42 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const MIGRATIONS_DIR = join(import.meta.dir, '..', 'server', 'db', 'migrations', 'sql')
+const NEW_TABLE = 'sys_migrations'
+const OLD_TABLE = '_migrations'
 
 async function runMigrations() {
   console.log('[start] Running database migrations...')
 
-  // Ensure migrations tracking table exists
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS _migrations (
-      name VARCHAR(255) PRIMARY KEY,
-      applied_at TIMESTAMPTZ DEFAULT NOW()
-    )
+  // Check which migrations table exists
+  const checkNew = await pool.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = '${NEW_TABLE}'
+    ) AS exists
+  `)
+  const checkOld = await pool.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = '${OLD_TABLE}'
+    ) AS exists
   `)
 
-  const applied = await pool.query<{ name: string }>('SELECT name FROM _migrations ORDER BY name')
+  let table: string
+  if (checkNew.rows[0]?.exists) {
+    table = NEW_TABLE
+  } else if (checkOld.rows[0]?.exists) {
+    table = OLD_TABLE
+  } else {
+    await pool.query(`
+      CREATE TABLE ${NEW_TABLE} (
+        name VARCHAR(255) PRIMARY KEY,
+        applied_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+    table = NEW_TABLE
+  }
+
+  const applied = await pool.query<{ name: string }>(`SELECT name FROM ${table} ORDER BY name`)
   const appliedSet = new Set(applied.rows.map(r => r.name))
 
   let files: string[]
@@ -35,8 +58,15 @@ async function runMigrations() {
     console.log(`[start] Applying migration: ${file}`)
     const sql = await readFile(join(MIGRATIONS_DIR, file), 'utf-8')
     await pool.query(sql)
-    await pool.query('INSERT INTO _migrations (name) VALUES ($1)', [file])
+    await pool.query(`INSERT INTO ${table} (name) VALUES ($1)`, [file])
     console.log(`[start] Applied: ${file}`)
+
+    // After applying 016, rename _migrations → sys_migrations
+    if (file === '016_table_prefix_convention.sql' && table === OLD_TABLE) {
+      await pool.query(`ALTER TABLE ${OLD_TABLE} RENAME TO ${NEW_TABLE}`)
+      table = NEW_TABLE
+      console.log(`[start] Renamed ${OLD_TABLE} → ${NEW_TABLE}`)
+    }
   }
 
   console.log('[start] Migrations complete.')

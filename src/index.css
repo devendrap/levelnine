@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 /* =============================================================================
-   ai-ui Design Tokens
+   LevelNine Design Tokens
    Aligned with ConstructNova design system
    Font: DM Sans · Primary: Gold (#D4A44A) · Accent: Blue (#3B8FE8)
    Dark: Navy #0B0F1A · Light text: Cream #F0EDE8
@@ -49,6 +49,7 @@
     --ui-primary-hover: #c0932e;
     --ui-primary-light: #faf3e3;
     --ui-primary-subtle: #fdf8ef;
+    --ui-text-on-primary: #0B0F1A;
 
     /* ── Accent (Blue) ── */
     --ui-accent: #3B8FE8;
@@ -117,6 +118,7 @@
     --ui-primary-hover: #e0b45a;
     --ui-primary-light: rgba(212, 164, 74, 0.1);
     --ui-primary-subtle: rgba(212, 164, 74, 0.05);
+    --ui-text-on-primary: #0B0F1A;
 
     /* ── Accent (Blue) ── */
     --ui-accent: #3B8FE8;

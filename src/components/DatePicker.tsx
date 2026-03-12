@@ -32,6 +32,32 @@ export function DatePicker(props: { label?: string; bind?: string; required?: bo
   const handleClickOutside = (e: MouseEvent) => {
     if (open() && containerRef && !containerRef.contains(e.target as Node)) setOpen(false)
   }
+  const handleCalendarKeyDown = (e: KeyboardEvent) => {
+    if (!open()) return
+    const v = value()
+    const current = v ? parseISO(v) : { year: viewYear(), month: viewMonth(), day: 1 }
+    let d = new Date(current.year, current.month, current.day)
+    let handled = true
+    switch (e.key) {
+      case 'ArrowLeft': d.setDate(d.getDate() - 1); break
+      case 'ArrowRight': d.setDate(d.getDate() + 1); break
+      case 'ArrowUp': d.setDate(d.getDate() - 7); break
+      case 'ArrowDown': d.setDate(d.getDate() + 7); break
+      case 'Enter': case ' ':
+        if (v && !isDisabled(v)) selectDate(v)
+        handled = true; break
+      default: handled = false
+    }
+    if (handled) {
+      e.preventDefault()
+      const iso = toISO(d.getFullYear(), d.getMonth(), d.getDate())
+      if (!isDisabled(iso)) {
+        if (props.bind) $formData.setKey(props.bind, iso)
+        setViewYear(d.getFullYear())
+        setViewMonth(d.getMonth())
+      }
+    }
+  }
   onMount(() => document.addEventListener('mousedown', handleClickOutside))
   onCleanup(() => document.removeEventListener('mousedown', handleClickOutside))
 
@@ -144,6 +170,8 @@ export function DatePicker(props: { label?: string; bind?: string; required?: bo
             width: '296px',
             animation: 'ui-scale-in 150ms ease-out',
           }}
+          onKeyDown={handleCalendarKeyDown}
+          tabIndex={-1}
         >
           {/* Header */}
           <div class="flex items-center justify-between px-4 py-3" style={{ "border-bottom": '1px solid var(--ui-border)' }}>
@@ -209,7 +237,7 @@ export function DatePicker(props: { label?: string; bind?: string; required?: bo
                       color: disabled()
                         ? 'var(--ui-text-placeholder)'
                         : selected()
-                          ? '#0B0F1A'
+                          ? 'var(--ui-text-on-primary)'
                           : cell.current
                             ? 'var(--ui-text)'
                             : 'var(--ui-text-placeholder)',

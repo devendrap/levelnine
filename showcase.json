@@ -6,7 +6,7 @@
       "type": "Stack",
       "props": { "gap": "2" },
       "children": [
-        { "type": "Heading", "props": { "level": 1, "content": "ai-ui Component Catalog" } },
+        { "type": "Heading", "props": { "level": 1, "content": "LevelNine Component Catalog" } },
         { "type": "Text", "props": { "content": "All 33 components in one page. Interactive — click, type, toggle everything.", "variant": "caption" } }
       ]
     },

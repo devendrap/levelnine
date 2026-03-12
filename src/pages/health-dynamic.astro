@@ -1,0 +1,8 @@
+---
+import Base from '../layouts/Base.astro'
+import HealthDynamicIsland from '../islands/HealthDynamicIsland.tsx'
+import '../index.css'
+---
+<Base title="System Health — Dynamic">
+  <HealthDynamicIsland client:only="solid-js" />
+</Base>

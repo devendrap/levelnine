@@ -1,5 +1,6 @@
 import { createSignal, Show, For } from 'solid-js'
 import ConfirmDialog from './ConfirmDialog'
+import { $provider } from '../../stores/manifest'
 import Toast, { showToast } from './Toast'
 
 export default function ManifestActions(props: {
@@ -15,10 +16,7 @@ export default function ManifestActions(props: {
   const [results, setResults] = createSignal<Array<{ name: string; success: boolean; error?: string }>>([])
   const [confirmLock, setConfirmLock] = createSignal(false)
 
-  const provider = () => {
-    const el = document.getElementById('provider-select') as HTMLSelectElement | null
-    return el?.value ?? 'ollama'
-  }
+  const provider = () => $provider.get()
 
   const generateSchemas = async (force = false) => {
     setGenerating(true)
@@ -152,7 +150,7 @@ export default function ManifestActions(props: {
             class="px-5 py-2.5 rounded-lg text-xs font-bold cursor-pointer hover:opacity-90 transition-all"
             style={{
               "background": "linear-gradient(135deg, var(--ui-primary) 0%, var(--ui-primary-hover) 100%)",
-              color: "#0B0F1A",
+              color: "var(--ui-text-on-primary)",
               "box-shadow": "0 2px 12px rgba(212,164,74,0.3)",
             }}
           >

@@ -31,9 +31,12 @@ export function authenticate(request: Request): AuthPayload {
 }
 
 export function optionalAuth(request: Request): AuthPayload | null {
+  const token = extractToken(request)
+  if (!token) return null // No token is expected — not an error
   try {
-    return authenticate(request)
-  } catch {
+    return verifyToken(token)
+  } catch (err) {
+    console.warn('[auth] Malformed token in optional auth:', (err as Error).message)
     return null
   }
 }
@@ -70,9 +73,13 @@ export async function authenticateAppUser(request: Request, slug: string): Promi
 }
 
 export async function optionalAppAuth(request: Request, slug: string): Promise<AppAuthPayload | null> {
+  const appToken = extractAppToken(request)
+  const platformToken = extractToken(request)
+  if (!appToken && !platformToken) return null // No token is expected — not an error
   try {
     return await authenticateAppUser(request, slug)
-  } catch {
+  } catch (err) {
+    console.warn('[auth] Malformed token in optional app auth:', (err as Error).message)
     return null
   }
 }
@@ -93,7 +100,7 @@ export function requireRole(auth: AuthPayload, minRole: string): void {
   }
 }
 
-const APP_ROLE_HIERARCHY: Record<string, number> = {
+export const APP_ROLE_HIERARCHY: Record<string, number> = {
   viewer: 1,
   editor: 2,
   admin: 3,

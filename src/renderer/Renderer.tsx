@@ -75,13 +75,15 @@ const componentMap: Record<string, any> = {
   Divider: Separator,
   Toggle: Switch,
   RichText: Textarea,
+  TextArea: Textarea,
+  NumberInput: Input,
   ProgressBar: Progress,
 }
 
 // Form component types that accept disabled prop
 const formComponents = new Set([
   'Input', 'Select', 'Checkbox', 'DatePicker', 'Textarea', 'RichText',
-  'Switch', 'Toggle', 'RadioGroup', 'FileUpload',
+  'TextArea', 'NumberInput', 'Switch', 'Toggle', 'RadioGroup', 'FileUpload',
 ])
 
 export function Renderer(props: { node: UIComponent; readOnly?: boolean }) {
@@ -111,19 +113,29 @@ export function Renderer(props: { node: UIComponent; readOnly?: boolean }) {
             )
           }
 
-          // Tabs: convert tabs[].children JSON nodes into JSX children panels
+          // Tabs: handle both LLM formats
+          // Format A (object): props.tabs = [{label, children}]  — children embedded in tab objects
+          // Format B (string): props.tabs = ["Tab1", "Tab2"]     — children are sibling nodes
           if (props.node.type === 'Tabs' && nodeProps.tabs) {
-            const tabs = nodeProps.tabs as { label: string; value?: string; children?: UIComponent[] }[]
+            const raw = nodeProps.tabs as (string | { label: string; value?: string; children?: UIComponent[] })[]
+            const siblingChildren = ((props.node as any).children ?? []) as UIComponent[]
+            const isStringFormat = typeof raw[0] === 'string'
+
+            const normalized = raw.map((t, i) => {
+              if (typeof t === 'string') {
+                return { label: t, value: t, children: siblingChildren[i] ? [siblingChildren[i]] : [] as UIComponent[] }
+              }
+              return { label: t.label, value: t.value ?? t.label, children: t.children ?? [] as UIComponent[] }
+            })
+
             return (
-              <C tabs={tabs.map(t => ({ label: t.label, value: t.value }))}>
-                <For each={tabs}>
+              <C tabs={normalized.map(t => ({ label: t.label, value: t.value }))}>
+                <For each={normalized}>
                   {(tab) => (
                     <div>
-                      <Show when={tab.children}>
-                        <For each={tab.children!}>
-                          {(child: UIComponent) => <Renderer node={child} readOnly={props.readOnly} />}
-                        </For>
-                      </Show>
+                      <For each={tab.children}>
+                        {(child: UIComponent) => <Renderer node={child} readOnly={props.readOnly} />}
+                      </For>
                     </div>
                   )}
                 </For>

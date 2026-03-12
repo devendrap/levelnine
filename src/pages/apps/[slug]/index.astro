@@ -1,29 +1,47 @@
 ---
 import AppLayout from '../../../layouts/AppLayout.astro'
-import { loadAppContext } from '../../../lib/apps/helpers'
+import { loadAppContext, getDefaultPage, getPages } from '../../../lib/apps/helpers'
+import { resolveWidget } from '../../../lib/apps/widgets'
+import WidgetRenderer from '../../../components/apps/WidgetRenderer.astro'
 import * as entityService from '../../../../server/modules/entities/service'
+import { entityStatusBadgeStyle } from '../../../lib/ui-colors'
 
 const ctx = await loadAppContext(Astro)
 if (ctx instanceof Response) return ctx
 const { container, entityTypes, user } = ctx
 
-// Gather stats per entity type
-const stats = await Promise.all(
-  entityTypes.map(async (et) => {
-    const result = await entityService.listEntities({
-      type: et.name,
-      container_id: container.id,
-      pageSize: 1,
-    })
-    return { name: et.name, description: et.description, total: result.total }
-  })
-)
+// Check for a custom default page (LLM-designed Home)
+const defaultPage = await getDefaultPage(container.id)
+const allPages = await getPages(container.id)
+
+let resolvedSections: any[] = []
+if (defaultPage) {
+  resolvedSections = await Promise.all(
+    defaultPage.sections.map(async (section: any) => ({
+      title: section.title,
+      width: section.width ?? 'full',
+      widget: await resolveWidget(section.widget, container.id, container.slug!),
+    }))
+  )
+}
+
+// Gather stats per entity type — single batch query instead of N+1
+const counts = await entityService.countEntitiesByType(container.id)
+const countMap = new Map(counts.map(c => [c.name, c.total]))
+const stats = entityTypes.map(et => ({
+  name: et.name,
+  description: et.description,
+  total: countMap.get(et.name) ?? 0,
+}))
 
 // Recent entities across all types
 const recent = await entityService.listEntities({
   container_id: container.id,
   pageSize: 10,
 })
+
+// Pre-build id→name map for O(1) lookups in the template
+const typeNameById = new Map(entityTypes.map(et => [et.id, et.name]))
 ---
 
 <AppLayout
@@ -31,7 +49,51 @@ const recent = await entityService.listEntities({
   entityTypes={entityTypes}
   userName={user.email}
   userRole={user.role}
+  pages={allPages}
 >
+  {defaultPage ? (
+    <div class="max-w-6xl mx-auto px-8 py-8">
+      <div class="mb-6">
+        <h1 class="text-xl font-bold" style="color:var(--ui-text)">{defaultPage.label}</h1>
+        {container.description && (
+          <p class="text-sm mt-1" style="color:var(--ui-text-muted)">{container.description}</p>
+        )}
+      </div>
+
+      {defaultPage.layout === 'single' ? (
+        <div class="space-y-6">
+          {resolvedSections.map((section: any) => (
+            <div>
+              {section.title && <h2 class="text-sm font-semibold mb-3" style="color:var(--ui-text)">{section.title}</h2>}
+              <WidgetRenderer widget={section.widget} />
+            </div>
+          ))}
+        </div>
+      ) : defaultPage.layout === 'two_column' ? (
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {resolvedSections.map((section: any) => (
+            <div class={section.width === 'full' ? 'lg:col-span-2' : ''}>
+              {section.title && <h2 class="text-sm font-semibold mb-3" style="color:var(--ui-text)">{section.title}</h2>}
+              <WidgetRenderer widget={section.widget} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {resolvedSections.map((section: any) => {
+            const colSpan = section.width === 'full' ? 'md:col-span-2 lg:col-span-3'
+              : section.width === 'half' ? '' : ''
+            return (
+              <div class={colSpan}>
+                {section.title && <h2 class="text-sm font-semibold mb-3" style="color:var(--ui-text)">{section.title}</h2>}
+                <WidgetRenderer widget={section.widget} />
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  ) : (
   <div class="max-w-6xl mx-auto px-8 py-8">
     <!-- Welcome -->
     <div class="mb-8">
@@ -117,8 +179,7 @@ const recent = await entityService.listEntities({
             </thead>
             <tbody>
               {recent.data.map((entity) => {
-                const et = entityTypes.find(e => e.id === entity.entity_type_id)
-                const typeName = et?.name ?? 'unknown'
+                const typeName = typeNameById.get(entity.entity_type_id) ?? 'unknown'
                 return (
                   <tr class="transition-colors" style="border-top:1px solid var(--ui-border)">
                     <td class="px-5 py-3">
@@ -138,17 +199,7 @@ const recent = await entityService.listEntities({
                     <td class="px-5 py-3">
                       <span
                         class="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                        style={`background-color:${
-                          entity.status === 'approved' ? 'var(--ui-success-bg)' :
-                          entity.status === 'review' ? 'var(--ui-warning-bg)' :
-                          entity.status === 'archived' ? 'var(--ui-error-bg)' :
-                          'rgba(240,237,232,0.06)'
-                        };color:${
-                          entity.status === 'approved' ? 'var(--ui-success)' :
-                          entity.status === 'review' ? 'var(--ui-warning)' :
-                          entity.status === 'archived' ? 'var(--ui-error)' :
-                          'var(--ui-text-muted)'
-                        }`}
+                        style={entityStatusBadgeStyle(entity.status)}
                       >
                         {entity.status}
                       </span>
@@ -167,4 +218,5 @@ const recent = await entityService.listEntities({
       )}
     </div>
   </div>
+  )}
 </AppLayout>

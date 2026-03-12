@@ -24,7 +24,7 @@ export async function findByEntityId(
   const [entries, countResult] = await Promise.all([
     query<AuditLogEntry & { user_name: string }>(
       `SELECT a.*, u.name as user_name
-       FROM audit_log a
+       FROM sys_audit_log a
        LEFT JOIN users u ON u.id = a.user_id
        WHERE a.entity_id = $1
        ORDER BY a.created_at DESC
@@ -32,7 +32,7 @@ export async function findByEntityId(
       [entityId, limit, offset],
     ),
     query<{ count: string }>(
-      'SELECT COUNT(*) as count FROM audit_log WHERE entity_id = $1',
+      'SELECT COUNT(*) as count FROM sys_audit_log WHERE entity_id = $1',
       [entityId],
     ),
   ])
@@ -63,7 +63,7 @@ export async function findByContainerId(
   const [entries, countResult] = await Promise.all([
     query<AuditLogEntry & { user_name: string }>(
       `SELECT a.*, u.name as user_name
-       FROM audit_log a
+       FROM sys_audit_log a
        LEFT JOIN users u ON u.id = a.user_id
        WHERE ${where}
        ORDER BY a.created_at DESC
@@ -71,7 +71,7 @@ export async function findByContainerId(
       [...params, limit, offset],
     ),
     query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM audit_log a WHERE ${where}`,
+      `SELECT COUNT(*) as count FROM sys_audit_log a WHERE ${where}`,
       params,
     ),
   ])

@@ -526,11 +526,23 @@ async function mergeIntoManifest(
   manifest.scope = [...(manifest.scope ?? [])]
   manifest.out_of_scope = [...(manifest.out_of_scope ?? [])]
 
+  // Build name indexes for O(1) dedup lookups
+  const etNames = new Set(manifest.entity_types.map(e => e.name))
+  const relKeys = new Set(manifest.relations.map(r => `${r.source_type}|${r.target_type}|${r.relation_type}`))
+  const nameIndex = (arr: Array<{ name: string }>) => new Set(arr.map(x => x.name))
+  const roleNames = nameIndex(manifest.roles)
+  const wfNames = nameIndex(manifest.workflows)
+  const compNames = nameIndex(manifest.compliance)
+  const docNames = nameIndex(manifest.documents)
+  const intNames = nameIndex(manifest.integrations)
+  const repNames = nameIndex(manifest.reports)
+  const ecNames = nameIndex(manifest.edge_cases)
+
   // Consolidation: remove entity types
   if (parsed.entity_types_removed?.length) {
     const removedNames = new Set(parsed.entity_types_removed.map((r: any) => r.name))
     manifest.entity_types = manifest.entity_types.filter(et => !removedNames.has(et.name))
-    // Also remove relations that reference removed types
+    for (const name of removedNames) etNames.delete(name)
     manifest.relations = manifest.relations.filter(
       r => !removedNames.has(r.source_type) && !removedNames.has(r.target_type),
     )
@@ -539,7 +551,8 @@ async function mergeIntoManifest(
   // Add new entity types
   if (parsed.entity_types_added?.length) {
     for (const et of parsed.entity_types_added) {
-      if (!manifest.entity_types.find(e => e.name === et.name)) {
+      if (!etNames.has(et.name)) {
+        etNames.add(et.name)
         manifest.entity_types.push({
           name: et.name,
           description: et.description,
@@ -553,8 +566,9 @@ async function mergeIntoManifest(
 
   // Modify existing entity types
   if (parsed.entity_types_modified?.length) {
+    const etByName = new Map(manifest.entity_types.map(e => [e.name, e]))
     for (const mod of parsed.entity_types_modified) {
-      const existing = manifest.entity_types.find(e => e.name === mod.name)
+      const existing = etByName.get(mod.name)
       if (existing && !existing.reviewed) {
         if (mod.changes.description) existing.description = mod.changes.description
         if (mod.changes.key_fields) existing.key_fields = mod.changes.key_fields
@@ -565,91 +579,72 @@ async function mergeIntoManifest(
   // Add relations
   if (parsed.relations_added?.length) {
     for (const rel of parsed.relations_added) {
-      if (!manifest.relations.some(r => r.source_type === rel.source_type && r.target_type === rel.target_type && r.relation_type === rel.relation_type)) {
+      const key = `${rel.source_type}|${rel.target_type}|${rel.relation_type}`
+      if (!relKeys.has(key)) {
+        relKeys.add(key)
         manifest.relations.push({ ...rel, source_dimension: dimension })
       }
     }
   }
 
-  // D2: Roles
-  if (parsed.roles_added?.length) {
-    for (const role of parsed.roles_added) {
-      if (!manifest.roles.find(r => r.name === role.name)) {
-        manifest.roles.push({ ...role, source_dimension: dimension })
+  // Helper: add items with dedup by name
+  const addByName = (
+    target: any[], names: Set<string>, items: any[] | undefined, dim: string,
+  ) => {
+    if (!items?.length) return
+    for (const item of items) {
+      if (!names.has(item.name)) {
+        names.add(item.name)
+        target.push({ ...item, source_dimension: dim })
       }
     }
   }
 
-  // D3: Workflows
-  if (parsed.workflows_added?.length) {
-    for (const wf of parsed.workflows_added) {
-      if (!manifest.workflows.find(w => w.name === wf.name)) {
-        manifest.workflows.push({ ...wf, source_dimension: dimension })
-      }
-    }
-  }
-
-  // D4: Compliance
-  if (parsed.compliance_added?.length) {
-    for (const c of parsed.compliance_added) {
-      if (!manifest.compliance.find(x => x.name === c.name)) {
-        manifest.compliance.push({ ...c, source_dimension: dimension })
-      }
-    }
-  }
-
-  // D5: Documents
-  if (parsed.documents_added?.length) {
-    for (const d of parsed.documents_added) {
-      if (!manifest.documents.find(x => x.name === d.name)) {
-        manifest.documents.push({ ...d, source_dimension: dimension })
-      }
-    }
-  }
-
-  // D6: Integrations
-  if (parsed.integrations_added?.length) {
-    for (const i of parsed.integrations_added) {
-      if (!manifest.integrations.find(x => x.name === i.name)) {
-        manifest.integrations.push({ ...i, source_dimension: dimension })
-      }
-    }
-  }
-
-  // D7: Reports
-  if (parsed.reports_added?.length) {
-    for (const r of parsed.reports_added) {
-      if (!manifest.reports.find(x => x.name === r.name)) {
-        manifest.reports.push({ ...r, source_dimension: dimension })
-      }
-    }
-  }
-
-  // D8: Edge cases
-  if (parsed.edge_cases_added?.length) {
-    for (const e of parsed.edge_cases_added) {
-      if (!manifest.edge_cases.find(x => x.name === e.name)) {
-        manifest.edge_cases.push({ ...e, source_dimension: dimension })
-      }
-    }
-  }
+  addByName(manifest.roles, roleNames, parsed.roles_added, dimension)
+  addByName(manifest.workflows, wfNames, parsed.workflows_added, dimension)
+  addByName(manifest.compliance, compNames, parsed.compliance_added, dimension)
+  addByName(manifest.documents, docNames, parsed.documents_added, dimension)
+  addByName(manifest.integrations, intNames, parsed.integrations_added, dimension)
+  addByName(manifest.reports, repNames, parsed.reports_added, dimension)
+  addByName(manifest.edge_cases, ecNames, parsed.edge_cases_added, dimension)
 
   // D9: Notifications
   manifest.notifications = [...(manifest.notifications ?? [])]
   if (parsed.notifications_added?.length) {
-    for (const n of parsed.notifications_added) {
-      if (!manifest.notifications.find(x => x.name === n.name)) {
-        manifest.notifications.push({ ...n, source_dimension: dimension })
-      }
-    }
+    const notifNames = nameIndex(manifest.notifications)
+    addByName(manifest.notifications, notifNames, parsed.notifications_added, dimension)
   }
 
   // D10: UI configs
   manifest.ui_configs = [...(manifest.ui_configs ?? [])]
   if (parsed.ui_configs_added?.length) {
-    for (const u of parsed.ui_configs_added) {
-      if (!manifest.ui_configs.find(x => x.name === u.name)) {
-        manifest.ui_configs.push({ ...u, source_dimension: dimension })
+    const uiNames = nameIndex(manifest.ui_configs)
+    addByName(manifest.ui_configs, uiNames, parsed.ui_configs_added, dimension)
+  }
+
+  // D11: Pages
+  manifest.pages = [...(manifest.pages ?? [])]
+  if (parsed.pages_added?.length) {
+    const pageNames = nameIndex(manifest.pages)
+    for (const p of parsed.pages_added) {
+      if (!pageNames.has(p.name)) {
+        pageNames.add(p.name)
+        manifest.pages.push({ ...p, source_dimension: dimension } as any)
+      }
+    }
+  }
+
+  // D11: Seed data
+  if (parsed.seed_data?.length) {
+    manifest.seed_data = [...(manifest.seed_data ?? [])]
+    const seedByType = new Map(manifest.seed_data.map(s => [s.entity_type, s]))
+    for (const s of parsed.seed_data) {
+      const existing = seedByType.get(s.entity_type)
+      if (existing) {
+        existing.records = [...existing.records, ...s.records]
+      } else {
+        manifest.seed_data.push(s)
+        seedByType.set(s.entity_type, s)
       }
     }
   }
@@ -698,7 +693,7 @@ async function materializeDimension(
           )
           // Also clean up relations referencing removed types
           await client.query(
-            'DELETE FROM container_relations WHERE container_id = $1 AND (source_type = $2 OR target_type = $2)',
+            'DELETE FROM cfg_relations WHERE container_id = $1 AND (source_type = $2 OR target_type = $2)',
             [containerId, row.name],
           )
         }
@@ -733,7 +728,7 @@ async function materializeDimension(
     const dimRelations = (manifest.relations ?? []).filter(r => r.source_dimension === dimension)
     for (const rel of dimRelations) {
       await client.query(
-        `INSERT INTO container_relations (container_id, source_type, target_type, relation_type, description, source_dimension)
+        `INSERT INTO cfg_relations (container_id, source_type, target_type, relation_type, description, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (container_id, source_type, target_type, relation_type) DO UPDATE SET
            description = EXCLUDED.description`,
@@ -745,7 +740,7 @@ async function materializeDimension(
     const dimRoles = (manifest.roles ?? []).filter(r => r.source_dimension === dimension)
     for (const role of dimRoles) {
       await client.query(
-        `INSERT INTO container_roles (container_id, name, label, description, permissions, restricted_entity_types, source_dimension)
+        `INSERT INTO cfg_roles (container_id, name, label, description, permissions, restricted_entity_types, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -758,7 +753,7 @@ async function materializeDimension(
     const dimWorkflows = (manifest.workflows ?? []).filter(w => w.source_dimension === dimension)
     for (const wf of dimWorkflows) {
       await client.query(
-        `INSERT INTO container_workflows (container_id, name, label, description, entity_type, statuses, transitions, source_dimension)
+        `INSERT INTO cfg_workflows (container_id, name, label, description, entity_type, statuses, transitions, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -771,7 +766,7 @@ async function materializeDimension(
     const dimCompliance = (manifest.compliance ?? []).filter(c => c.source_dimension === dimension)
     for (const c of dimCompliance) {
       await client.query(
-        `INSERT INTO container_compliance (container_id, name, standard, description, entity_types, checkpoints, source_dimension)
+        `INSERT INTO cfg_compliance (container_id, name, standard, description, entity_types, checkpoints, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (container_id, name) DO UPDATE SET
            standard = EXCLUDED.standard, description = EXCLUDED.description,
@@ -784,7 +779,7 @@ async function materializeDimension(
     const dimDocs = (manifest.documents ?? []).filter(d => d.source_dimension === dimension)
     for (const d of dimDocs) {
       await client.query(
-        `INSERT INTO container_documents (container_id, name, label, description, entity_type, format, retention_days, source_dimension)
+        `INSERT INTO cfg_documents (container_id, name, label, description, entity_type, format, retention_days, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -797,7 +792,7 @@ async function materializeDimension(
     const dimIntegrations = (manifest.integrations ?? []).filter(i => i.source_dimension === dimension)
     for (const i of dimIntegrations) {
       await client.query(
-        `INSERT INTO container_integrations (container_id, name, label, description, system_type, direction, entity_types, config, source_dimension)
+        `INSERT INTO cfg_integrations (container_id, name, label, description, system_type, direction, entity_types, config, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -811,7 +806,7 @@ async function materializeDimension(
     const dimReports = (manifest.reports ?? []).filter(r => r.source_dimension === dimension)
     for (const r of dimReports) {
       await client.query(
-        `INSERT INTO container_reports (container_id, name, label, description, report_type, entity_types, schema, schedule, source_dimension)
+        `INSERT INTO cfg_reports (container_id, name, label, description, report_type, entity_types, schema, schedule, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -825,7 +820,7 @@ async function materializeDimension(
     const dimEdgeCases = (manifest.edge_cases ?? []).filter(e => e.source_dimension === dimension)
     for (const e of dimEdgeCases) {
       await client.query(
-        `INSERT INTO container_edge_cases (container_id, name, label, description, category, entity_types, handling, source_dimension)
+        `INSERT INTO cfg_edge_cases (container_id, name, label, description, category, entity_types, handling, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -838,7 +833,7 @@ async function materializeDimension(
     const dimNotifications = (manifest.notifications ?? []).filter(n => n.source_dimension === dimension)
     for (const n of dimNotifications) {
       await client.query(
-        `INSERT INTO container_notifications (container_id, name, label, description, trigger_entity_type, trigger_event, trigger_condition, recipients, channel, escalation_minutes, escalation_to, template, source_dimension)
+        `INSERT INTO cfg_notifications (container_id, name, label, description, trigger_entity_type, trigger_event, trigger_condition, recipients, channel, escalation_minutes, escalation_to, template, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, description = EXCLUDED.description,
@@ -856,7 +851,7 @@ async function materializeDimension(
     const dimUIConfigs = (manifest.ui_configs ?? []).filter(u => u.source_dimension === dimension)
     for (const u of dimUIConfigs) {
       await client.query(
-        `INSERT INTO container_ui_configs (container_id, name, label, entity_type, view_type, grid_config, detail_config, navigation, source_dimension)
+        `INSERT INTO cfg_ui_configs (container_id, name, label, entity_type, view_type, grid_config, detail_config, navigation, source_dimension)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (container_id, name) DO UPDATE SET
            label = EXCLUDED.label, entity_type = EXCLUDED.entity_type,
@@ -865,6 +860,24 @@ async function materializeDimension(
         [containerId, u.name, u.label, u.entity_type, u.view_type,
          JSON.stringify(u.grid_config), JSON.stringify(u.detail_config ?? {}),
          JSON.stringify(u.navigation ?? {}), dimension],
+      )
+    }
+
+    // Pages (D11)
+    const dimPages = (manifest.pages ?? []).filter(p => p.source_dimension === dimension)
+    for (const p of dimPages) {
+      await client.query(
+        `INSERT INTO cfg_pages (container_id, name, label, route, icon, layout, sections, is_default, access_roles, sort_order, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, route = EXCLUDED.route, icon = EXCLUDED.icon,
+           layout = EXCLUDED.layout, sections = EXCLUDED.sections,
+           is_default = EXCLUDED.is_default, access_roles = EXCLUDED.access_roles,
+           sort_order = EXCLUDED.sort_order`,
+        [containerId, p.name, p.label, p.route, p.icon ?? null, p.layout,
+         JSON.stringify(p.sections), p.is_default ?? false,
+         p.access_roles ? JSON.stringify(p.access_roles) : null,
+         p.is_default ? 0 : 99, dimension],
       )
     }
   })

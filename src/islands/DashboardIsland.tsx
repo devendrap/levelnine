@@ -1,4 +1,4 @@
-import { createResource, createSignal, Show, For } from 'solid-js'
+import { createResource, createSignal, Show, For, onMount } from 'solid-js'
 
 interface EntityRow {
   id: string
@@ -57,8 +57,10 @@ export default function DashboardIsland() {
   const [apps] = createResource(fetchLaunchedApps)
   const [user, setUser] = createSignal<any>(null)
 
-  // Try fetching current user
-  fetch('/api/v1/auth/me').then(r => r.ok ? r.json() : null).then(d => d && setUser(d.user)).catch(() => {})
+  // Fetch current user on mount (not at module level)
+  onMount(() => {
+    fetch('/api/v1/auth/me').then(r => r.ok ? r.json() : null).then(d => d && setUser(d.user)).catch(() => {})
+  })
 
   const typeNameMap = () => {
     const m = new Map<string, string>()
@@ -86,7 +88,7 @@ export default function DashboardIsland() {
         style={{ "background-color": "var(--ui-card-bg)", "border-color": "var(--ui-border)" }}
       >
         <div class="flex items-center gap-4">
-          <h1 class="text-lg font-semibold" style={{ color: "var(--ui-text)" }}>ai-ui</h1>
+          <a href="/dashboard"><img src="/icon.png" alt="LevelNine" style={{ height: "28px" }} /></a>
           <a
             href="/containers"
             class="text-sm px-3 py-1 rounded-lg border hover:opacity-80"

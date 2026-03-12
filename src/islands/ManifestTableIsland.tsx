@@ -1,6 +1,7 @@
-import { createSignal, Show, For, createMemo, ErrorBoundary } from 'solid-js'
+import { createSignal, createEffect, Show, For, createMemo, ErrorBoundary } from 'solid-js'
 import { Renderer } from '../renderer/Renderer'
 import Toast, { showToast } from '../components/containers/Toast'
+import { $provider, $manifestTotal, $manifestSchemaReady, $manifestReviewed, $manifestGenerating } from '../stores/manifest'
 
 interface EntityTypeDef {
   name: string
@@ -24,19 +25,31 @@ export default function ManifestTableIsland(props: {
   const [results, setResults] = createSignal<Array<{ name: string; success: boolean; error?: string }>>([])
   const [confirmAction, setConfirmAction] = createSignal<{ title: string; message: string; onConfirm: () => void } | null>(null)
 
+  // Reactive entity types — starts from props, updates live during SSE generation
+  const [entityTypes, setEntityTypes] = createSignal<EntityTypeDef[]>(props.entityTypes)
+
   const isLocked = () => props.containerStatus === 'locked' || props.containerStatus === 'launched'
 
-  const totalCount = () => props.entityTypes.length
-  const reviewedCount = () => props.entityTypes.filter(e => e.reviewed).length
+  const totalCount = () => entityTypes().length
+  const reviewedCount = () => entityTypes().filter(e => e.reviewed).length
+  const schemaReadyCount = () => entityTypes().filter(e => e.schema).length
   const allReviewed = () => totalCount() > 0 && reviewedCount() === totalCount()
-  const missingSchemas = () => props.entityTypes.filter(e => !e.schema).length
+  const missingSchemas = () => entityTypes().filter(e => !e.schema).length
+
+  // Sync counts to shared nanostore for header + sidebar islands
+  createEffect(() => {
+    $manifestTotal.set(totalCount())
+    $manifestSchemaReady.set(schemaReadyCount())
+    $manifestReviewed.set(reviewedCount())
+    $manifestGenerating.set(generating())
+  })
 
   const allChecked = () => selected().size === totalCount() && totalCount() > 0
   const someChecked = () => selected().size > 0 && selected().size < totalCount()
 
   const toggleAll = () => {
     if (allChecked()) setSelected(new Set())
-    else setSelected(new Set(props.entityTypes.map(e => e.name)))
+    else setSelected(new Set(entityTypes().map(e => e.name)))
   }
 
   const toggleOne = (name: string) => {
@@ -48,7 +61,7 @@ export default function ManifestTableIsland(props: {
 
   const activeSchema = createMemo(() => {
     if (!activePreview()) return null
-    return props.entityTypes.find(e => e.name === activePreview())
+    return entityTypes().find(e => e.name === activePreview())
   })
 
   const apiCall = async (url: string, method: string, body?: any) => {
@@ -87,11 +100,6 @@ export default function ManifestTableIsland(props: {
     window.location.href = `/containers/${props.containerId}?enhance=${encodeURIComponent(name)}`
   }
 
-  const provider = () => {
-    const el = document.getElementById('provider-select') as HTMLSelectElement | null
-    return el?.value ?? 'ollama'
-  }
-
   const generateSchemas = async () => {
     setGenerating(true)
     setCompleted(0)
@@ -100,7 +108,7 @@ export default function ManifestTableIsland(props: {
       const res = await fetch(`/api/v1/containers/${props.containerId}/generate-schemas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: provider() }),
+        body: JSON.stringify({ provider: $provider.get() }),
       })
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: 'Request failed' }))
@@ -126,8 +134,14 @@ export default function ManifestTableIsland(props: {
             if (eventType === 'progress') {
               setCompleted(data.index)
               setResults(prev => [...prev, { name: data.name, success: data.success, error: data.error }])
+              // Update entity type with schema in real-time
+              if (data.success && data.schema) {
+                setEntityTypes(prev => prev.map(et =>
+                  et.name === data.name ? { ...et, schema: data.schema } : et
+                ))
+              }
             } else if (eventType === 'done') {
-              setTimeout(() => window.location.reload(), 1500)
+              setGenerating(false)
             } else if (eventType === 'error') {
               setResults(prev => [...prev, { name: 'error', success: false, error: data.error }])
               setGenerating(false)
@@ -172,7 +186,7 @@ export default function ManifestTableIsland(props: {
         <div>
           <h2 class="text-base font-semibold" style={{ color: 'var(--ui-text)' }}>Entity Types</h2>
           <p class="text-xs mt-0.5" style={{ color: 'var(--ui-text-muted)' }}>
-            {totalCount()} defined, {reviewedCount()} reviewed
+            {totalCount()} defined, {schemaReadyCount()} with schema, {reviewedCount()} reviewed
           </p>
         </div>
         <div class="flex items-center gap-2">
@@ -180,8 +194,13 @@ export default function ManifestTableIsland(props: {
             <button
               onClick={generateSchemas}
               disabled={generating()}
-              class="px-3.5 py-2 rounded-lg text-xs font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40"
-              style={{ 'background-color': 'rgba(59,143,232,0.12)', color: 'var(--ui-accent, #3B8FE8)', border: '1px solid rgba(59,143,232,0.2)' }}
+              class="px-3.5 py-2 rounded-lg text-xs font-semibold cursor-pointer hover:opacity-90 transition-all"
+              style={{
+                'background-color': generating() ? 'rgba(212,164,74,0.18)' : 'rgba(59,143,232,0.12)',
+                color: generating() ? 'var(--ui-primary)' : 'var(--ui-accent, #3B8FE8)',
+                border: generating() ? '1px solid rgba(212,164,74,0.35)' : '1px solid rgba(59,143,232,0.2)',
+                'box-shadow': generating() ? '0 0 12px rgba(212,164,74,0.15)' : 'none',
+              }}
             >
               {generating()
                 ? `Generating... ${completed()}/${missingSchemas()}`
@@ -201,7 +220,7 @@ export default function ManifestTableIsland(props: {
             <button
               onClick={launchApp}
               class="px-4 py-2 rounded-lg text-xs font-bold cursor-pointer hover:opacity-90 transition-all"
-              style={{ background: 'linear-gradient(135deg, var(--ui-primary) 0%, var(--ui-primary-hover) 100%)', color: '#0B0F1A', 'box-shadow': '0 2px 12px rgba(212,164,74,0.3)' }}
+              style={{ background: 'linear-gradient(135deg, var(--ui-primary) 0%, var(--ui-primary-hover) 100%)', color: 'var(--ui-text-on-primary)', 'box-shadow': '0 2px 12px rgba(212,164,74,0.3)' }}
             >
               Launch App
             </button>
@@ -306,10 +325,10 @@ export default function ManifestTableIsland(props: {
                         <Show when={allChecked() || someChecked()}>
                           <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
                             <Show when={allChecked()}>
-                              <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="#0B0F1A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                              <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="var(--ui-text-on-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                             </Show>
                             <Show when={someChecked()}>
-                              <path d="M4 8H12" stroke="#0B0F1A" stroke-width="2" stroke-linecap="round" />
+                              <path d="M4 8H12" stroke="var(--ui-text-on-primary)" stroke-width="2" stroke-linecap="round" />
                             </Show>
                           </svg>
                         </Show>
@@ -328,7 +347,7 @@ export default function ManifestTableIsland(props: {
                 </tr>
               </thead>
               <tbody>
-                <For each={props.entityTypes}>
+                <For each={entityTypes()}>
                   {(et) => {
                     const isActive = () => activePreview() === et.name
                     const isChecked = () => selected().has(et.name)
@@ -353,7 +372,7 @@ export default function ManifestTableIsland(props: {
                             >
                               <Show when={isChecked()}>
                                 <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-                                  <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="#0B0F1A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                  <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="var(--ui-text-on-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                                 </svg>
                               </Show>
                             </div>

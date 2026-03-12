@@ -1,4 +1,5 @@
 import { createSignal, Show } from 'solid-js'
+import { showToast } from './Toast'
 
 export default function SidebarCreateForm() {
   const [creating, setCreating] = createSignal(false)
@@ -20,10 +21,10 @@ export default function SidebarCreateForm() {
         window.location.href = `/containers/${c.id}`
       } else {
         const err = await res.json().catch(() => ({ error: 'Failed to create container' }))
-        alert(err.error)
+        showToast(err.error)
       }
     } catch {
-      alert('Network error — could not create container')
+      showToast('Network error — could not create container')
     }
   }
 
@@ -49,7 +50,7 @@ export default function SidebarCreateForm() {
             <button
               onClick={create}
               class="flex-1 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer"
-              style={{ "background-color": "var(--ui-primary)", color: "#0B0F1A" }}
+              style={{ "background-color": "var(--ui-primary)", color: "var(--ui-text-on-primary)" }}
             >
               Create
             </button>

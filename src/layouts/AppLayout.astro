@@ -11,21 +11,26 @@ interface Props {
   userName: string
   userRole: string
   activeType?: string
+  activePage?: string
+  pages?: any[]
   breadcrumbs?: Array<{ label: string; href?: string }>
 }
 
-const { container, entityTypes, userName, userRole, activeType, breadcrumbs } = Astro.props
+const { container, entityTypes, userName, userRole, activeType, activePage, pages, breadcrumbs } = Astro.props
 const pageTitle = activeType
   ? `${activeType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} — ${container.name}`
   : container.name
 ---
 
-<Base title={`ai-ui — ${pageTitle}`}>
+<Base title={`LevelNine — ${pageTitle}`}>
   <div class="dark flex h-screen" style="background-color:var(--ui-bg);font-family:var(--ui-font)">
     <AppSidebar
       container={container}
       entityTypes={entityTypes}
       activeType={activeType}
+      activePage={activePage}
+      pages={pages}
+      userRole={userRole}
     />
     <div class="flex-1 flex flex-col min-w-0">
       <AppHeader
