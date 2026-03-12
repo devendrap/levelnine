@@ -27,6 +27,12 @@ dist-ssr
 .env*
 !.env.example
 
+# Astro generated
+.astro/
+
+# Figma MCP
+.figma/
+
 # Preview specs (generated at runtime)
 .previews/
 waitlist.json
