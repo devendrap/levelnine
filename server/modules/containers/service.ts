@@ -1,8 +1,10 @@
 import * as repo from './repository'
 import * as entityRepo from '../entities/repository'
-import { transaction } from '../../db/index'
+import { transaction, query as dbQuery } from '../../db/index'
 import type { Container, ContainerMessage, ContainerManifest } from '../../core/types/index'
 import { getClient, getModel, type Provider } from '../../../src/api/providers'
+import { buildPrompt, parseExplorationOutput } from '../exploration/prompts'
+import { findDimensionByKey } from '../exploration/repository'
 
 export class ContainerError extends Error {
   constructor(message: string, public status: number) {
@@ -909,6 +911,143 @@ export async function launchContainer(id: string): Promise<Container> {
   const c = await repo.updateContainer(id, { status: 'launched', slug } as any)
   if (!c) throw new ContainerError('Failed to launch container', 500)
   return c
+}
+
+// ============================================================================
+// Generate Pages & Seed Data (D11 for launched containers)
+// ============================================================================
+
+export async function generatePagesAndSeed(
+  containerId: string,
+  provider: Provider = 'ollama',
+  model?: string,
+): Promise<{ pages: any[]; seedCount: number }> {
+  const container = await repo.findContainerById(containerId)
+  if (!container) throw new ContainerError('Container not found', 404)
+
+  const manifest = (container.manifest ?? {}) as ContainerManifest
+  if (!manifest.entity_types?.length) {
+    throw new ContainerError('Container has no entity types — cannot generate pages', 400)
+  }
+
+  // Get D11 dimension config
+  const dimension = await findDimensionByKey('pages_dashboard')
+  if (!dimension) throw new ContainerError('D11 (pages_dashboard) dimension not found — run seed migration', 500)
+
+  // Fetch user's original prompt for domain context
+  const promptResult = await dbQuery<{ content: string }>(
+    `SELECT content FROM chat_messages WHERE container_id = $1 AND role = 'user' ORDER BY created_at ASC LIMIT 1`,
+    [containerId],
+  )
+  const userPrompt = promptResult.rows[0]?.content ?? container.name
+
+  // Build D11 prompt
+  const prompt = buildPrompt('generate', dimension, container.name, manifest, { userPrompt })
+
+  const { client } = getClient(provider)
+  const modelId = getModel(provider, model)
+
+  // Call LLM with retry for missing json:exploration_output block
+  let fullOutput = ''
+  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    {
+      role: 'system',
+      content: `You are an expert UI/UX designer building dashboard pages and seed data for the "${container.name}" application. The user specifically requested: "${userPrompt}". Design pages that give practitioners an immediate, data-rich experience with real metrics and workflows.`,
+    },
+    { role: 'user', content: prompt },
+  ]
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await client.chat.completions.create({
+      model: modelId,
+      messages,
+      temperature: 0.7,
+    })
+
+    const content = response.choices[0]?.message?.content?.trim()
+    if (!content) throw new ContainerError('Empty LLM response', 502)
+
+    fullOutput = attempt === 0 ? content : fullOutput + '\n\n' + content
+    if (fullOutput.includes('```json:exploration_output')) break
+
+    messages.push({ role: 'assistant', content })
+    messages.push({
+      role: 'user',
+      content: 'Your response is missing the required ```json:exploration_output block. Please include it now with pages_added and seed_data arrays.',
+    })
+  }
+
+  // Parse output
+  const parsed = parseExplorationOutput(fullOutput)
+  if (!parsed) throw new ContainerError('Failed to parse LLM output — no json:exploration_output block found', 502)
+
+  const pagesAdded = parsed.pages_added ?? []
+  const seedData = parsed.seed_data ?? []
+
+  if (pagesAdded.length === 0) {
+    throw new ContainerError('LLM returned no pages — try again', 502)
+  }
+
+  // Transaction: upsert pages + insert seed data
+  let seedCount = 0
+  await transaction(async (client) => {
+    // Upsert pages into cfg_pages
+    for (let i = 0; i < pagesAdded.length; i++) {
+      const p = pagesAdded[i]
+      await client.query(
+        `INSERT INTO cfg_pages (container_id, name, label, route, icon, layout, sections, is_default, access_roles, sort_order, source_dimension)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (container_id, name) DO UPDATE SET
+           label = EXCLUDED.label, route = EXCLUDED.route, icon = EXCLUDED.icon,
+           layout = EXCLUDED.layout, sections = EXCLUDED.sections,
+           is_default = EXCLUDED.is_default, access_roles = EXCLUDED.access_roles,
+           sort_order = EXCLUDED.sort_order`,
+        [
+          containerId, p.name, p.label, p.route, p.icon ?? null,
+          p.layout ?? 'grid', JSON.stringify(p.sections ?? []),
+          p.is_default ?? false, p.access_roles ? JSON.stringify(p.access_roles) : null,
+          p.is_default ? 0 : (i + 1) * 10, 'pages_dashboard',
+        ],
+      )
+    }
+
+    // Insert seed data (skip if container already has seeded records)
+    const existingSeed = await client.query(
+      `SELECT count(*) as cnt FROM entities WHERE container_id = $1 AND metadata->>'source' = 'seed_data'`,
+      [containerId],
+    )
+    if (parseInt(existingSeed.rows[0].cnt) === 0 && seedData.length > 0) {
+      for (const seed of seedData) {
+        const typeResult = await client.query(
+          'SELECT id FROM entity_types WHERE name = $1 AND container_id = $2',
+          [seed.entity_type, containerId],
+        )
+        if (typeResult.rows.length === 0) continue
+
+        const entityTypeId = typeResult.rows[0].id
+        for (const record of seed.records) {
+          await client.query(
+            `INSERT INTO entities (entity_type_id, container_id, name, status, content, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT DO NOTHING`,
+            [entityTypeId, containerId, record.name, record.status || 'active',
+             JSON.stringify(record.content), JSON.stringify({ source: 'seed_data' })],
+          )
+          seedCount++
+        }
+      }
+    }
+  })
+
+  // Merge pages + seed_data into manifest
+  const updatedManifest = { ...manifest }
+  updatedManifest.pages = pagesAdded.map((p: any) => ({ ...p, source_dimension: 'pages_dashboard' }))
+  if (seedData.length > 0) {
+    updatedManifest.seed_data = [...(updatedManifest.seed_data ?? []), ...seedData]
+  }
+  await repo.updateContainer(containerId, { manifest: updatedManifest })
+
+  return { pages: pagesAdded, seedCount }
 }
 
 // ============================================================================
