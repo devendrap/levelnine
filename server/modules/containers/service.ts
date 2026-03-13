@@ -1025,13 +1025,17 @@ export async function generatePagesAndSeed(
         if (typeResult.rows.length === 0) continue
 
         const entityTypeId = typeResult.rows[0].id
+        const validStatuses = new Set(['draft', 'active', 'review', 'approved', 'archived'])
         for (const record of seed.records) {
+          const name = record.name || record.content?.name || `${seed.entity_type} ${seedCount + 1}`
+          if (!name) continue
+          const status = validStatuses.has(record.status) ? record.status : 'active'
           await client.query(
             `INSERT INTO entities (entity_type_id, container_id, name, status, content, metadata)
              VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT DO NOTHING`,
-            [entityTypeId, containerId, record.name, record.status || 'active',
-             JSON.stringify(record.content), JSON.stringify({ source: 'seed_data' })],
+            [entityTypeId, containerId, name, status,
+             JSON.stringify(record.content ?? {}), JSON.stringify({ source: 'seed_data' })],
           )
           seedCount++
         }

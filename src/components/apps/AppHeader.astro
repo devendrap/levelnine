@@ -13,72 +13,65 @@ const { appName, slug, userName, userRole, breadcrumbs = [] } = Astro.props
 ---
 
 <header
-  class="shrink-0 flex items-center justify-between px-6 h-14"
-  style="border-bottom:1px solid var(--ui-border);background-color:var(--ui-bg-subtle)"
+  class="shrink-0 flex items-center justify-between"
+  style="height:56px;min-height:56px;padding:0 24px;border-bottom:1px solid var(--ui-border);background-color:var(--ui-bg-subtle)"
 >
-  <!-- Left: breadcrumbs -->
+  <!-- Breadcrumbs -->
   <div class="flex items-center gap-2 min-w-0">
     <a
       href="/dashboard"
-      class="text-xs hover:opacity-80 transition-opacity"
-      style="color:var(--ui-text-muted)"
-      title="Back to dashboard"
+      class="shrink-0 flex items-center justify-center"
+      style="width:28px;height:28px;border-radius:var(--ui-radius-sm);color:var(--ui-text-muted);transition:all 0.15s"
+      title="Back to platform"
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
         <polyline points="9 22 9 12 15 12 15 22"/>
       </svg>
     </a>
-    <span style="color:var(--ui-border)">/</span>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ui-text-placeholder)" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-12" /></svg>
     <a
       href={`/apps/${slug}`}
-      class="text-sm font-semibold truncate hover:opacity-80 transition-opacity"
-      style="color:var(--ui-primary)"
+      style="font-size:14px;font-weight:600;color:var(--ui-primary);text-decoration:none;transition:opacity 0.15s"
     >
       {appName}
     </a>
     {breadcrumbs.map((crumb) => (
       <>
-        <span style="color:var(--ui-border)" class="text-xs">/</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ui-text-placeholder)" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-12" /></svg>
         {crumb.href ? (
           <a
             href={crumb.href}
-            class="text-xs truncate hover:opacity-80 transition-opacity"
-            style="color:var(--ui-text-muted)"
+            style="font-size:13px;color:var(--ui-text-muted);text-decoration:none;transition:opacity 0.15s"
           >
             {crumb.label}
           </a>
         ) : (
-          <span class="text-xs truncate" style="color:var(--ui-text)">
-            {crumb.label}
-          </span>
+          <span style="font-size:13px;color:var(--ui-text)">{crumb.label}</span>
         )}
       </>
     ))}
   </div>
 
   <!-- Right: notifications + user -->
-  <div class="flex items-center gap-3">
+  <div class="flex items-center" style="gap:12px">
     <NotificationBellIsland client:only="solid-js" />
-    <div class="flex items-center gap-2">
+    <div style="width:1px;height:20px;background-color:var(--ui-border)" />
+    <div class="flex items-center" style="gap:10px">
       <div
-        class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold"
-        style="background-color:rgba(212,164,74,0.12);color:var(--ui-primary)"
+        class="shrink-0 flex items-center justify-center"
+        style="width:28px;height:28px;border-radius:50%;background-color:var(--ui-primary-light);border:1px solid rgba(212,164,74,0.2)"
       >
-        {userName.charAt(0).toUpperCase()}
+        <span style="font-size:11px;font-weight:700;color:var(--ui-primary)">{userName.charAt(0).toUpperCase()}</span>
       </div>
-      <span class="text-xs" style="color:var(--ui-text-muted)">{userName}</span>
-      <span
-        class="text-[10px] px-1.5 py-0.5 rounded"
-        style="background-color:rgba(212,164,74,0.08);color:var(--ui-primary)"
-      >
-        {userRole}
-      </span>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--ui-text);line-height:1.2">{userName}</div>
+        <div style="font-size:10px;color:var(--ui-text-placeholder);line-height:1.2">{userRole}</div>
+      </div>
     </div>
     <button
       data-app-logout={slug}
-      class="text-[11px] hover:opacity-80 transition-opacity cursor-pointer"
-      style="color:var(--ui-text-muted);background:none;border:none"
+      style="font-size:11px;color:var(--ui-text-placeholder);background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:var(--ui-radius-sm);transition:all 0.15s"
     >
       Sign out
     </button>

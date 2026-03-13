@@ -76,8 +76,11 @@
     --ui-info-border: #bfdbfe;
 
     /* ── Shadows ── */
+    --ui-shadow-xs: 0 1px 2px 0 rgba(0,0,0,.04);
     --ui-shadow: 0 1px 3px 0 rgba(0,0,0,.06), 0 1px 2px -1px rgba(0,0,0,.06);
+    --ui-shadow-md: 0 3px 4px 0 rgba(0,0,0,.1);
     --ui-shadow-lg: 0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.08);
+    --ui-shadow-card: 0 1px 3px 0 rgba(0,0,0,.06), 0 1px 2px -1px rgba(0,0,0,.04);
 
     /* ── Chart Colors ── */
     --ui-chart-1: #D4A44A;
@@ -145,8 +148,11 @@
     --ui-info-border: rgba(59, 143, 232, 0.2);
 
     /* ── Shadows ── */
+    --ui-shadow-xs: 0 1px 2px 0 rgba(0,0,0,.2);
     --ui-shadow: 0 1px 3px 0 rgba(0,0,0,.4), 0 1px 2px -1px rgba(0,0,0,.4);
+    --ui-shadow-md: 0 3px 4px 0 rgba(0,0,0,.25);
     --ui-shadow-lg: 0 10px 15px -3px rgba(0,0,0,.4), 0 4px 6px -4px rgba(0,0,0,.4);
+    --ui-shadow-card: 0 1px 4px 0 rgba(0,0,0,.3), 0 1px 2px -1px rgba(0,0,0,.2);
 
     /* ── Chart Colors ── */
     --ui-chart-1: #D4A44A;
@@ -209,4 +215,54 @@
 @keyframes ui-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes ui-fade-scale-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* =============================================================================
+   Utility Classes
+   ============================================================================= */
+
+.ui-card {
+  background-color: var(--ui-card-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-card);
+}
+
+.ui-animate-in {
+  animation: ui-fade-scale-in 0.2s ease-out;
+}
+
+/* Navigation item base */
+.ui-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--ui-radius-md);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ui-text-muted);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+.ui-nav-item:hover {
+  background-color: var(--ui-bg-muted);
+  color: var(--ui-text-secondary);
+}
+.ui-nav-item--active {
+  background-color: var(--ui-primary-light);
+  color: var(--ui-primary);
+  font-weight: 600;
+  box-shadow: var(--ui-shadow-xs);
+  border: 1px solid rgba(212, 164, 74, 0.2);
+}
+.ui-nav-item--active:hover {
+  background-color: var(--ui-primary-light);
+  color: var(--ui-primary);
 }

@@ -192,7 +192,7 @@ const notificationCount = (manifest?.notifications ?? []).length
         const res = await fetch(`/api/v1/containers/${containerId}/generate-pages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: 'gemini' }),
+          body: JSON.stringify({ provider: 'ollama' }),
           credentials: 'include',
         })
 
