@@ -1,8 +1,10 @@
 ---
 import AppLayout from '../../../layouts/AppLayout.astro'
+import OnboardingGuideIsland from '../../../islands/OnboardingGuideIsland.tsx'
 import { loadAppContext, getDefaultPage, getPages } from '../../../lib/apps/helpers'
 import { resolveWidget } from '../../../lib/apps/widgets'
 import WidgetRenderer from '../../../components/apps/WidgetRenderer.astro'
+import AvatarStack from '../../../components/apps/AvatarStack.astro'
 import * as entityService from '../../../../server/modules/entities/service'
 import { entityStatusBadgeStyle } from '../../../lib/ui-colors'
 
@@ -42,6 +44,14 @@ const recent = await entityService.listEntities({
 
 // Pre-build id→name map for O(1) lookups in the template
 const typeNameById = new Map(entityTypes.map(et => [et.id, et.name]))
+
+// Build role avatars from manifest for AvatarStack
+const roleColors = ['#3B8FE8', '#D4A44A', '#E8553B', '#38B887', '#9B59B6', '#E67E22']
+const manifestRoles = (container.manifest as any)?.roles ?? []
+const roleUsers = manifestRoles.map((r: any, i: number) => ({
+  name: r.label ?? r.name,
+  color: roleColors[i % roleColors.length],
+}))
 ---
 
 <AppLayout
@@ -54,7 +64,15 @@ const typeNameById = new Map(entityTypes.map(et => [et.id, et.name]))
   {defaultPage ? (
     <div class="max-w-6xl mx-auto px-8 py-8">
       <div class="mb-6">
-        <h1 class="text-xl font-bold" style="color:var(--ui-text)">{defaultPage.label}</h1>
+        <div class="flex items-center justify-between">
+          <h1 class="text-xl font-bold" style="color:var(--ui-text)">{defaultPage.label}</h1>
+          {roleUsers.length > 0 && (
+            <div class="flex items-center gap-2">
+              <span class="text-xs" style="color:var(--ui-text-placeholder)">Roles</span>
+              <AvatarStack users={roleUsers} size="sm" max={5} />
+            </div>
+          )}
+        </div>
         {container.description && (
           <p class="text-sm mt-1" style="color:var(--ui-text-muted)">{container.description}</p>
         )}
@@ -97,7 +115,15 @@ const typeNameById = new Map(entityTypes.map(et => [et.id, et.name]))
   <div class="max-w-6xl mx-auto px-8 py-8">
     <!-- Welcome -->
     <div class="mb-8">
-      <h1 class="text-xl font-bold" style="color:var(--ui-text)">{container.name}</h1>
+      <div class="flex items-center justify-between">
+        <h1 class="text-xl font-bold" style="color:var(--ui-text)">{container.name}</h1>
+        {roleUsers.length > 0 && (
+          <div class="flex items-center gap-2">
+            <span class="text-xs" style="color:var(--ui-text-placeholder)">Roles</span>
+            <AvatarStack users={roleUsers} size="sm" max={5} />
+          </div>
+        )}
+      </div>
       {container.description && (
         <p class="text-sm mt-1" style="color:var(--ui-text-muted)">{container.description}</p>
       )}
@@ -219,4 +245,16 @@ const typeNameById = new Map(entityTypes.map(et => [et.id, et.name]))
     </div>
   </div>
   )}
+
+  <OnboardingGuideIsland
+    client:only="solid-js"
+    storageKey={`onboarding-${container.slug}`}
+    title={`Welcome to ${container.name}`}
+    description="Your workspace is ready. Here's how to get started."
+    steps={[
+      { title: 'Browse Entity Types', description: 'Explore your data models in the sidebar navigation.' },
+      { title: 'View & Edit Records', description: 'Click any record to view details and make changes.' },
+      { title: 'Track Status', description: 'Use workflows and status badges to manage your process.' },
+    ]}
+  />
 </AppLayout>

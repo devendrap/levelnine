@@ -1,0 +1,49 @@
+---
+interface Props {
+  steps: Array<{ label: string }>
+  currentStep: number
+}
+const { steps, currentStep } = Astro.props
+---
+
+<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13px">
+  {steps.map((step, i) => (
+    <>
+      {/* Circle */}
+      <div style={`
+        width:20px; height:20px; border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        font-size:10px; font-weight:700; flex-shrink:0;
+        ${i < currentStep
+          ? 'background-color:var(--ui-text-muted); color:white;'
+          : i === currentStep
+            ? 'background-color:var(--ui-primary); color:var(--ui-text-on-primary);'
+            : 'border:1px solid var(--ui-border); color:var(--ui-text-placeholder);'
+        }
+      `}>
+        {i < currentStep ? (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        ) : (
+          i + 1
+        )}
+      </div>
+
+      {/* Label */}
+      <span style={`
+        ${i === currentStep
+          ? 'color:var(--ui-primary); font-weight:600;'
+          : i < currentStep
+            ? 'color:var(--ui-text); font-weight:600;'
+            : 'color:var(--ui-text-placeholder); font-weight:500;'
+        }
+      `}>{step.label}</span>
+
+      {/* Separator */}
+      {i < steps.length - 1 && (
+        <span style={`color:${i === currentStep ? 'var(--ui-primary)' : 'var(--ui-text-placeholder)'};`}>&raquo;</span>
+      )}
+    </>
+  ))}
+</div>

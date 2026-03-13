@@ -1,9 +1,87 @@
-import { createSignal, onMount, Show, For } from 'solid-js'
+import { createSignal, createMemo, onMount, Show, For } from 'solid-js'
 import { useStore } from '@nanostores/solid'
 import { $formData, resetFormData, seedFormData } from '../stores/ui'
 import { Renderer } from '../renderer/Renderer'
+import DeletePopoverIsland, { showDeletePopover } from './DeletePopoverIsland'
 
 type TransitionInfo = { to: string; role?: string; conditions?: string; allowed: boolean; reason?: string }
+
+type UINode = { type: string; props?: Record<string, any>; children?: UINode[] }
+
+type DetailSection = { label: string; fields?: string[]; related_entity_type?: string }
+
+type DetailConfig = {
+  layout?: 'tabs' | 'accordion' | 'sections'
+  sections?: DetailSection[]
+} | null
+
+/** Full-width field types (rendered spanning both grid columns) */
+const WIDE_TYPES = new Set(['Textarea', 'RichText', 'TextArea'])
+
+/** Types that represent form fields with a bind prop */
+const FORM_FIELD_TYPES = new Set([
+  'Input', 'Select', 'Checkbox', 'DatePicker', 'Textarea', 'RichText',
+  'TextArea', 'NumberInput', 'Switch', 'Toggle', 'RadioGroup', 'FileUpload',
+])
+
+/** Recursively collect form field nodes from a UI spec tree */
+function collectFields(node: UINode): UINode[] {
+  const fields: UINode[] = []
+  if (FORM_FIELD_TYPES.has(node.type) && node.props?.bind) {
+    fields.push(node)
+  }
+  if (node.children) {
+    for (const child of node.children) {
+      fields.push(...collectFields(child))
+    }
+  }
+  return fields
+}
+
+/** Build field sections from detail_config or auto-group */
+function buildSections(
+  fields: UINode[],
+  detailConfig: DetailConfig,
+): Array<{ label: string; fields: UINode[] }> {
+  if (detailConfig?.sections?.length) {
+    const fieldMap = new Map<string, UINode>()
+    for (const f of fields) {
+      if (f.props?.bind) fieldMap.set(f.props.bind, f)
+    }
+    const assigned = new Set<string>()
+    const sections: Array<{ label: string; fields: UINode[] }> = []
+    for (const sec of detailConfig.sections) {
+      if (!sec.fields?.length) continue
+      const matched = sec.fields
+        .filter(name => fieldMap.has(name))
+        .map(name => { assigned.add(name); return fieldMap.get(name)! })
+      if (matched.length > 0) {
+        sections.push({ label: sec.label, fields: matched })
+      }
+    }
+    // Remaining unassigned fields
+    const remaining = fields.filter(f => f.props?.bind && !assigned.has(f.props.bind))
+    if (remaining.length > 0) {
+      sections.push({ label: 'Other Details', fields: remaining })
+    }
+    return sections
+  }
+
+  // Auto-group: ~5 fields per section
+  const CHUNK = 5
+  const sections: Array<{ label: string; fields: UINode[] }> = []
+  if (fields.length <= CHUNK) {
+    sections.push({ label: 'Details', fields })
+  } else {
+    for (let i = 0; i < fields.length; i += CHUNK) {
+      const chunk = fields.slice(i, i + CHUNK)
+      const idx = Math.floor(i / CHUNK)
+      const sectionLabels = ['General Information', 'Additional Details', 'Configuration', 'Classification', 'Notes & Metadata']
+      sections.push({ label: sectionLabels[idx] ?? `Section ${idx + 1}`, fields: chunk })
+    }
+  }
+  return sections
+}
 
 export default function AppEntityFormIsland(props: {
   containerId: string
@@ -11,6 +89,7 @@ export default function AppEntityFormIsland(props: {
   typeName: string
   entityTypeId: string
   schema: Record<string, any>
+  detailConfig?: DetailConfig
   /** For edit mode */
   entityId?: string
   entityName?: string
@@ -36,6 +115,11 @@ export default function AppEntityFormIsland(props: {
 
   // Default statuses when no workflow defined
   const defaultStatuses = ['draft', 'active', 'review', 'approved', 'archived']
+
+  // Extract fields and build sections
+  const allFields = createMemo(() => collectFields(props.schema as UINode))
+  const sections = createMemo(() => buildSections(allFields(), props.detailConfig ?? null))
+  const hasStructuredFields = createMemo(() => allFields().length > 0)
 
   const fetchWorkflow = async (currentStatus: string) => {
     try {
@@ -69,15 +153,12 @@ export default function AppEntityFormIsland(props: {
     if (!hasWorkflow()) return defaultStatuses
     const current = props.entityStatus ?? status()
     const allowed = transitions().map(t => t.to)
-    // Always include current status + allowed transitions
     const set = new Set([current, ...allowed])
-    // Order by workflow statuses order
     return workflowStatuses().filter(s => set.has(s))
   }
 
-  // Check if a status option is disabled (transition exists but role too low)
   const isStatusDisabled = (s: string) => {
-    if (s === (props.entityStatus ?? status())) return false // current status always selectable
+    if (s === (props.entityStatus ?? status())) return false
     if (!hasWorkflow()) return false
     const t = transitions().find(t => t.to === s)
     return t ? !t.allowed : true
@@ -111,7 +192,6 @@ export default function AppEntityFormIsland(props: {
         }
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
-        // Re-fetch transitions for new status
         if (status() !== props.entityStatus) {
           fetchWorkflow(status())
         }
@@ -160,12 +240,11 @@ export default function AppEntityFormIsland(props: {
           </h1>
           <Show when={isEdit}>
             <span
-              class="text-[11px] px-2 py-0.5 rounded-full font-medium"
-              style={{
-                "background-color": status() === 'approved' ? 'var(--ui-success-bg)' :
-                  status() === 'review' ? 'var(--ui-warning-bg)' : 'rgba(240,237,232,0.06)',
-                color: status() === 'approved' ? 'var(--ui-success)' :
-                  status() === 'review' ? 'var(--ui-warning)' : 'var(--ui-text-muted)',
+              class="ui-badge"
+              classList={{
+                'ui-badge-success': status() === 'approved',
+                'ui-badge-warning': status() === 'review',
+                'ui-badge-muted': status() !== 'approved' && status() !== 'review',
               }}
             >
               {status()}
@@ -173,18 +252,36 @@ export default function AppEntityFormIsland(props: {
           </Show>
         </div>
         <Show when={!props.readOnly}>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-3">
             <Show when={error()}>
               <span class="text-xs" style={{ color: "var(--ui-error)" }}>{error()}</span>
             </Show>
             <Show when={saved()}>
               <span class="text-xs" style={{ color: "var(--ui-success)" }}>Saved</span>
             </Show>
+            <Show when={isEdit}>
+              <button
+                class="ui-btn ui-btn-ghost ui-btn-sm"
+                style={{ color: 'var(--ui-error)' }}
+                onClick={(e: MouseEvent) => showDeletePopover(props.entityId!, e.currentTarget as HTMLElement)}
+                aria-label={`Delete ${label}`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              </button>
+            </Show>
+            <a
+              href={`/apps/${props.slug}/${props.typeName}`}
+              class="ui-btn ui-btn-secondary ui-btn-sm"
+            >
+              Cancel
+            </a>
             <button
               onClick={save}
               disabled={saving()}
-              class="px-5 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-90 disabled:opacity-40"
-              style={{ "background-color": "var(--ui-primary)", color: "var(--ui-text-on-primary)" }}
+              class="ui-btn ui-btn-primary"
             >
               {saving() ? 'Saving...' : isEdit ? 'Save Changes' : `Create ${label}`}
             </button>
@@ -192,73 +289,132 @@ export default function AppEntityFormIsland(props: {
         </Show>
       </div>
 
-      {/* Name + Status row */}
-      <div
-        class="rounded-xl p-5 mb-6"
-        style={{ "background-color": "var(--ui-bg-subtle)", border: "1px solid var(--ui-border)" }}
-      >
-        <div class="flex gap-4">
-          <div class="flex-1">
-            <label class="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--ui-text-muted)" }}>
-              Name
-            </label>
-            <input
-              type="text"
-              value={name()}
-              onInput={(e) => setName(e.currentTarget.value)}
-              placeholder={`Enter ${label.toLowerCase()} name...`}
-              disabled={props.readOnly}
-              class="w-full bg-transparent outline-none text-sm px-3 py-2 rounded-lg"
-              style={{
-                color: "var(--ui-text)",
-                border: "1px solid var(--ui-border)",
-                "background-color": "rgba(240,237,232,0.02)",
-              }}
-            />
-          </div>
-          <Show when={isEdit}>
-            <div style={{ width: "180px" }}>
-              <label class="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--ui-text-muted)" }}>
-                Status
-              </label>
-              <select
-                value={status()}
-                onChange={(e) => setStatus(e.currentTarget.value)}
+      {/* Section 1: Identity (Name + Status) */}
+      <div class="ui-section mb-4">
+        <div class="ui-section-header">
+          <span class="ui-section-number">1</span>
+          Identity
+        </div>
+        <div class="ui-section-body">
+          <div style={{ display: 'grid', 'grid-template-columns': '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label class="ui-label">Name</label>
+              <input
+                type="text"
+                value={name()}
+                onInput={(e) => setName(e.currentTarget.value)}
+                placeholder={`Enter ${label.toLowerCase()} name...`}
                 disabled={props.readOnly}
-                class="w-full bg-transparent outline-none text-sm px-3 py-2 rounded-lg cursor-pointer"
-                style={{
-                  color: "var(--ui-text)",
-                  border: "1px solid var(--ui-border)",
-                  "background-color": "var(--ui-bg-subtle)",
-                }}
-              >
-                <For each={availableStatuses()}>
-                  {(s) => (
-                    <option
-                      value={s}
-                      disabled={isStatusDisabled(s)}
-                      style={{ background: "var(--ui-bg)", color: isStatusDisabled(s) ? "var(--ui-text-placeholder)" : "var(--ui-text)" }}
-                    >
-                      {s.charAt(0).toUpperCase() + s.slice(1)}{isStatusDisabled(s) && statusHint(s) ? ` (${statusHint(s)})` : ''}
-                    </option>
-                  )}
-                </For>
-              </select>
+                class="ui-input"
+                classList={{ 'ui-input-readonly': !!props.readOnly }}
+              />
             </div>
-          </Show>
+            <Show when={isEdit}>
+              <div>
+                <label class="ui-label">Status</label>
+                <select
+                  value={status()}
+                  onChange={(e) => setStatus(e.currentTarget.value)}
+                  disabled={props.readOnly}
+                  class="ui-select"
+                >
+                  <For each={availableStatuses()}>
+                    {(s) => (
+                      <option
+                        value={s}
+                        disabled={isStatusDisabled(s)}
+                        style={{ background: "var(--ui-bg)", color: isStatusDisabled(s) ? "var(--ui-text-placeholder)" : "var(--ui-text)" }}
+                      >
+                        {s.charAt(0).toUpperCase() + s.slice(1)}{isStatusDisabled(s) && statusHint(s) ? ` (${statusHint(s)})` : ''}
+                      </option>
+                    )}
+                  </For>
+                </select>
+              </div>
+            </Show>
+          </div>
         </div>
       </div>
 
-      {/* Schema-rendered form */}
-      <div
-        class="rounded-xl p-6"
-        style={{
-          "background-color": "var(--ui-bg-subtle)",
-          border: "1px solid var(--ui-border)",
-        }}
+      {/* Schema-rendered form fields in sections */}
+      <Show
+        when={hasStructuredFields()}
+        fallback={
+          /* Fallback: render schema as-is when no bindable fields found */
+          <div class="ui-section">
+            <div class="ui-section-header">
+              <span class="ui-section-number">2</span>
+              Details
+            </div>
+            <div class="ui-section-body">
+              <Renderer node={props.schema as any} readOnly={props.readOnly} />
+            </div>
+          </div>
+        }
       >
-        <Renderer node={props.schema as any} />
-      </div>
+        <For each={sections()}>
+          {(section, sectionIdx) => (
+            <div class="ui-section mb-4">
+              <div class="ui-section-header">
+                <span class="ui-section-number">{sectionIdx() + 2}</span>
+                {section.label}
+              </div>
+              <div class="ui-section-body">
+                <div style={{ display: 'grid', 'grid-template-columns': '1fr 1fr', gap: '16px' }}>
+                  <For each={section.fields}>
+                    {(field) => (
+                      <div
+                        style={{
+                          'grid-column': WIDE_TYPES.has(field.type) ? 'span 2' : undefined,
+                        }}
+                      >
+                        <Renderer node={field as any} readOnly={props.readOnly} />
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </div>
+            </div>
+          )}
+        </For>
+      </Show>
+
+      {/* Bottom action bar (visible on long forms) */}
+      <Show when={!props.readOnly && allFields().length > 6}>
+        <div
+          class="flex items-center justify-end gap-3 mt-6 pt-4"
+          style={{ 'border-top': '1px solid var(--ui-border)' }}
+        >
+          <a
+            href={`/apps/${props.slug}/${props.typeName}`}
+            class="ui-btn ui-btn-secondary ui-btn-sm"
+          >
+            Cancel
+          </a>
+          <button
+            onClick={save}
+            disabled={saving()}
+            class="ui-btn ui-btn-primary"
+          >
+            {saving() ? 'Saving...' : isEdit ? 'Save Changes' : `Create ${label}`}
+          </button>
+        </div>
+      </Show>
+
+      {/* Delete confirmation popover */}
+      <Show when={isEdit}>
+        <DeletePopoverIsland
+          entityName={label}
+          onConfirm={async (id: string) => {
+            const res = await fetch(`/api/v1/entities/${id}`, { method: 'DELETE' })
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({ error: 'Delete failed' }))
+              throw new Error(err.error ?? 'Delete failed')
+            }
+            window.location.href = `/apps/${props.slug}/${props.typeName}`
+          }}
+        />
+      </Show>
     </div>
   )
 }

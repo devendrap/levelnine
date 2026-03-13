@@ -1,5 +1,6 @@
 ---
 import type { ResolvedWidget } from '../../lib/apps/widgets'
+import EmptyState from './EmptyState.astro'
 
 interface Props {
   widget: ResolvedWidget
@@ -20,6 +21,14 @@ const chartColors = [
   'var(--ui-chart-4)', 'var(--ui-chart-5)', 'var(--ui-accent)',
 ]
 
+// Legend entries sorted by value descending (for 2-column layout)
+const chartLegend = chartLabels.map((label, i) => ({
+  label,
+  value: chartValues[i],
+  color: chartColors[i % chartColors.length],
+})).sort((a, b) => b.value - a.value)
+const chartUseGrid = chartLabels.length >= 6
+
 // Workflow summary pre-processing
 const wfEntries: Array<{ status: string; count: number }> = []
 if (type === 'workflow_summary' && data?.statusCounts) {
@@ -29,19 +38,18 @@ if (type === 'workflow_summary' && data?.statusCounts) {
 }
 const wfTotal: number = type === 'workflow_summary' && data ? data.total : 0
 
-// Status badge styling helper
-function statusStyle(status: string): string {
-  const map: Record<string, { bg: string; fg: string }> = {
-    approved: { bg: 'var(--ui-success-bg)', fg: 'var(--ui-success)' },
-    active: { bg: 'var(--ui-success-bg)', fg: 'var(--ui-success)' },
-    complete: { bg: 'var(--ui-success-bg)', fg: 'var(--ui-success)' },
-    review: { bg: 'var(--ui-warning-bg)', fg: 'var(--ui-warning)' },
-    pending: { bg: 'var(--ui-warning-bg)', fg: 'var(--ui-warning)' },
-    archived: { bg: 'var(--ui-error-bg)', fg: 'var(--ui-error)' },
-    draft: { bg: 'var(--ui-bg-muted)', fg: 'var(--ui-text-placeholder)' },
+// Status badge class helper
+function statusClass(status: string): string {
+  const map: Record<string, string> = {
+    approved: 'ui-badge ui-badge-success',
+    active: 'ui-badge ui-badge-success',
+    complete: 'ui-badge ui-badge-success',
+    review: 'ui-badge ui-badge-warning',
+    pending: 'ui-badge ui-badge-warning',
+    archived: 'ui-badge ui-badge-error',
+    draft: 'ui-badge ui-badge-muted',
   }
-  const s = map[status] ?? { bg: 'var(--ui-bg-muted)', fg: 'var(--ui-text-muted)' }
-  return `background-color:${s.bg};color:${s.fg}`
+  return map[status] ?? 'ui-badge ui-badge-muted'
 }
 
 // Workflow bar color helper
@@ -61,10 +69,12 @@ function wfBarColor(status: string): string {
         <a
           href={`/apps/${wProps.slug}/${s.name}`}
           class="ui-card ui-animate-in"
-          style="display:block;padding:20px;text-decoration:none;transition:transform 0.15s ease, box-shadow 0.15s ease"
+          style="display:block;height:140px;padding:20px;text-decoration:none;transition:transform 0.15s ease, box-shadow 0.15s ease"
         >
-          <div style="font-size:28px;font-weight:800;color:var(--ui-primary);line-height:1">{s.total}</div>
-          <div style="font-size:12px;font-weight:500;color:var(--ui-text);margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{label}</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <span style="font-size:12px;font-weight:600;text-transform:uppercase;color:var(--ui-text-muted)">{label}</span>
+          </div>
+          <div style="font-size:28px;font-weight:800;color:var(--ui-primary);margin-top:16px;line-height:1">{s.total}</div>
         </a>
       )
     })}
@@ -74,36 +84,34 @@ function wfBarColor(status: string): string {
 {type === 'recent_activity' && data && (
   <div class="ui-card ui-animate-in" style="overflow:hidden">
     {(data as any[]).length === 0 ? (
-      <div style="padding:40px 24px;text-align:center">
-        <p style="font-size:13px;color:var(--ui-text-muted)">No recent activity yet.</p>
-      </div>
+      <EmptyState icon="inbox" title="No recent activity" description="Activity will appear here as records are created and updated." />
     ) : (
-      <table style="width:100%;border-collapse:collapse">
-        <thead>
-          <tr style="background-color:var(--ui-bg-muted)">
-            <th style="text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;padding:12px 20px;color:var(--ui-text-muted)">Name</th>
-            <th style="text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;padding:12px 20px;color:var(--ui-text-muted)">Type</th>
-            <th style="text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;padding:12px 20px;color:var(--ui-text-muted)">Status</th>
-            <th style="text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;padding:12px 20px;color:var(--ui-text-muted)">Updated</th>
+      <table class="ui-table">
+        <thead class="ui-thead">
+          <tr>
+            <th class="ui-th">Name</th>
+            <th class="ui-th">Type</th>
+            <th class="ui-th">Status</th>
+            <th class="ui-th">Updated</th>
           </tr>
         </thead>
         <tbody>
-          {(data as any[]).map((item: any, i: number) => (
-            <tr style={`border-top:1px solid var(--ui-border);${i % 2 === 1 ? 'background-color:var(--ui-bg-subtle)' : ''}`}>
-              <td style="padding:10px 20px">
-                <a href={`/apps/${wProps.slug}/${item.typeName}/${item.id}`} style="font-size:13px;font-weight:500;color:var(--ui-text);text-decoration:none">
+          {(data as any[]).map((item: any) => (
+            <tr class="ui-tr-hover">
+              <td class="ui-td">
+                <a href={`/apps/${wProps.slug}/${item.typeName}/${item.id}`} style="font-weight:500;color:var(--ui-text);text-decoration:none">
                   {item.name}
                 </a>
               </td>
-              <td style="padding:10px 20px">
+              <td class="ui-td">
                 <span style="font-size:12px;color:var(--ui-text-muted)">{item.typeName.replace(/_/g, ' ')}</span>
               </td>
-              <td style="padding:10px 20px">
-                <span style={`display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500;${statusStyle(item.status)}`}>
+              <td class="ui-td">
+                <span class={statusClass(item.status)}>
                   {item.status}
                 </span>
               </td>
-              <td style="padding:10px 20px">
+              <td class="ui-td">
                 <span style="font-size:12px;color:var(--ui-text-placeholder)">{new Date(item.updatedAt).toLocaleDateString()}</span>
               </td>
             </tr>
@@ -122,58 +130,88 @@ function wfBarColor(status: string): string {
         <span style="font-size:12px;color:var(--ui-text-placeholder)">{chartTotal} total</span>
       )}
     </div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      {chartLabels.map((label, i) => {
-        const pct = chartMax > 0 ? (chartValues[i] / chartMax) * 100 : 0
-        const color = chartColors[i % chartColors.length]
-        return (
-          <div style="display:flex;align-items:center;gap:12px">
-            <span style="font-size:12px;width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ui-text-muted)">{label}</span>
-            <div style="flex:1;height:24px;border-radius:var(--ui-radius-sm);overflow:hidden;background-color:var(--ui-bg-muted)">
-              <div style={`height:100%;border-radius:var(--ui-radius-sm);width:${pct}%;background-color:${color};transition:width 0.4s ease`} />
+    {chartUseGrid ? (
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+        {/* Left column: bar chart */}
+        <div style="display:flex;flex-direction:column;gap:10px">
+          {chartLabels.map((label, i) => {
+            const pct = chartMax > 0 ? (chartValues[i] / chartMax) * 100 : 0
+            const color = chartColors[i % chartColors.length]
+            return (
+              <div style="display:flex;align-items:center;gap:12px">
+                <span style="font-size:12px;width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ui-text-muted)">{label}</span>
+                <div style="flex:1;height:24px;border-radius:var(--ui-radius-sm);overflow:hidden;background-color:var(--ui-bg-muted)">
+                  <div style={`height:100%;border-radius:var(--ui-radius-sm);width:${pct}%;background-color:${color};transition:width 0.4s ease`} />
+                </div>
+                <span style="font-size:12px;font-weight:600;width:36px;text-align:right;color:var(--ui-text)">{chartValues[i]}</span>
+              </div>
+            )
+          })}
+        </div>
+        {/* Right column: summary legend */}
+        <div style="display:flex;flex-direction:column;gap:8px;border-left:1px solid var(--ui-border);padding-left:20px">
+          <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--ui-text-placeholder);margin-bottom:4px">Legend</span>
+          {chartLegend.map((entry) => (
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style={`width:10px;height:10px;border-radius:9999px;flex-shrink:0;background-color:${entry.color}`} />
+              <span style="font-size:12px;color:var(--ui-text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{entry.label}</span>
+              <span style="font-size:12px;font-weight:600;color:var(--ui-text)">{entry.value}</span>
             </div>
-            <span style="font-size:12px;font-weight:600;width:36px;text-align:right;color:var(--ui-text)">{chartValues[i]}</span>
-          </div>
-        )
-      })}
-    </div>
+          ))}
+        </div>
+      </div>
+    ) : (
+      <div style="display:flex;flex-direction:column;gap:10px">
+        {chartLabels.map((label, i) => {
+          const pct = chartMax > 0 ? (chartValues[i] / chartMax) * 100 : 0
+          const color = chartColors[i % chartColors.length]
+          return (
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font-size:12px;width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ui-text-muted)">{label}</span>
+              <div style="flex:1;height:24px;border-radius:var(--ui-radius-sm);overflow:hidden;background-color:var(--ui-bg-muted)">
+                <div style={`height:100%;border-radius:var(--ui-radius-sm);width:${pct}%;background-color:${color};transition:width 0.4s ease`} />
+              </div>
+              <span style="font-size:12px;font-weight:600;width:36px;text-align:right;color:var(--ui-text)">{chartValues[i]}</span>
+            </div>
+          )
+        })}
+      </div>
+    )}
   </div>
 )}
 
 {type === 'entity_list' && data && (
   <div class="ui-card ui-animate-in" style="overflow:hidden">
     {(data as any[]).length === 0 ? (
-      <div style="padding:40px 24px;text-align:center">
-        <p style="font-size:13px;color:var(--ui-text-muted)">No records found.</p>
-      </div>
+      <EmptyState icon="search" title="No records found" description="Try adjusting your filters or create a new record." />
     ) : (
-      <table style="width:100%;border-collapse:collapse">
-        <thead>
-          <tr style="background-color:var(--ui-bg-muted)">
-            <th style="text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;padding:12px 20px;color:var(--ui-text-muted)">Name</th>
+      <table class="ui-table">
+        <thead class="ui-thead">
+          <tr>
+            <th class="ui-th">Name</th>
             {(wProps.columns as string[]).map((col: string) => (
-              <th style="text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;padding:12px 20px;color:var(--ui-text-muted)">
+              <th class="ui-th">
                 {col.replace(/_/g, ' ')}
               </th>
             ))}
-            <th style="text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;padding:12px 20px;color:var(--ui-text-muted)">Status</th>
+            <th class="ui-th">Status</th>
           </tr>
         </thead>
         <tbody>
-          {(data as any[]).map((item: any, i: number) => (
-            <tr style={`border-top:1px solid var(--ui-border);${i % 2 === 1 ? 'background-color:var(--ui-bg-subtle)' : ''}`}>
-              <td style="padding:10px 20px">
-                <a href={`/apps/${wProps.slug}/${wProps.entity_type}/${item.id}`} style="font-size:13px;font-weight:500;color:var(--ui-text);text-decoration:none">
+          {(data as any[]).map((item: any) => (
+            <tr class="ui-tr-hover">
+              <td class="ui-td">
+                <a href={`/apps/${wProps.slug}/${wProps.entity_type}/${item.id}`} style="font-weight:500;color:var(--ui-text);text-decoration:none">
                   {item.name}
                 </a>
               </td>
               {(wProps.columns as string[]).map((col: string) => (
-                <td style="padding:10px 20px">
+                <td class="ui-td">
                   <span style="font-size:12px;color:var(--ui-text-muted)">{item.content?.[col] ?? '-'}</span>
                 </td>
               ))}
-              <td style="padding:10px 20px">
-                <span style={`display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500;${statusStyle(item.status)}`}>
+              <td class="ui-td">
+                <span class={statusClass(item.status)}>
                   {item.status}
                 </span>
               </td>
@@ -192,7 +230,7 @@ function wfBarColor(status: string): string {
       return (
         <a
           href={`/apps/${wProps.slug}/${typeName}/new`}
-          style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--ui-radius-md);font-size:12px;font-weight:500;background-color:var(--ui-primary-light);color:var(--ui-primary);border:1px solid rgba(212,164,74,0.2);text-decoration:none;transition:all 0.15s;box-shadow:var(--ui-shadow-xs)"
+          class="ui-btn ui-btn-secondary"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -205,9 +243,11 @@ function wfBarColor(status: string): string {
 )}
 
 {type === 'kpi_card' && data && (
-  <div class="ui-card ui-animate-in" style="padding:24px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--ui-text-placeholder);margin-bottom:8px">{wProps.label}</div>
-    <div style="font-size:32px;font-weight:800;color:var(--ui-primary);line-height:1">{data.value}</div>
+  <div class="ui-card ui-animate-in" style="padding:24px;height:127px;display:flex;flex-direction:column">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--ui-text-placeholder)">{wProps.label}</div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end">
+      <div style="font-size:32px;font-weight:800;color:var(--ui-primary);line-height:1">{data.value}</div>
+    </div>
   </div>
 )}
 
@@ -243,7 +283,7 @@ function wfBarColor(status: string): string {
     <div style="display:flex;flex-direction:column;gap:10px">
       {(data.checkpoints ?? []).map((cp: string) => (
         <div style="display:flex;align-items:flex-start;gap:10px">
-          <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid var(--ui-border);display:flex;align-items:center;justify-content:center;shrink:0;margin-top:1px">
+          <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid var(--ui-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ui-text-placeholder)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
@@ -262,7 +302,7 @@ function wfBarColor(status: string): string {
 )}
 
 {type === 'unknown' && (
-  <div class="ui-card" style="padding:24px;text-align:center">
-    <p style="font-size:13px;color:var(--ui-text-muted)">Unknown widget type</p>
+  <div class="ui-card ui-animate-in">
+    <div class="ui-empty">Unknown widget type</div>
   </div>
 )}

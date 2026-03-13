@@ -60,6 +60,7 @@ const allPages = await getPages(container.id)
     typeName={typeName}
     entityTypeId={entityType.id}
     schema={entityType.schema}
+    detailConfig={uiConfig?.detail_config ?? null}
     entityId={entity.id}
     entityName={entity.name}
     entityContent={entity.content}

@@ -1,6 +1,9 @@
 ---
 import AppLayout from '../../../../layouts/AppLayout.astro'
+import StepWizard from '../../../../components/apps/StepWizard.astro'
+import AvatarStack from '../../../../components/apps/AvatarStack.astro'
 import { loadAppContext, getPages } from '../../../../lib/apps/helpers'
+import * as entityService from '../../../../../server/modules/entities/service'
 
 const ctx = await loadAppContext(Astro)
 if (ctx instanceof Response) return ctx
@@ -13,6 +16,30 @@ if (user.role !== 'admin') {
 
 const allPages = await getPages(container.id)
 const manifest = container.manifest as any
+
+// Count seed entities for setup progress
+const entityCounts = await entityService.countEntitiesByType(container.id)
+const totalSeedRecords = entityCounts.reduce((sum, c) => sum + Number(c.total), 0)
+
+// Setup progress: 0=Define Schema, 1=Generate Pages, 2=Seed Data (all done = 3)
+const hasSchemas = entityTypes.length > 0
+const hasPages = allPages.length > 0
+const hasSeedData = totalSeedRecords > 0
+const setupStep = hasSeedData ? 3 : hasPages ? 2 : hasSchemas ? 1 : 0
+
+const setupSteps = [
+  { label: 'Define Schema' },
+  { label: 'Generate Pages' },
+  { label: 'Seed Data' },
+]
+
+// Build role avatars for AvatarStack
+const roleColors = ['#3B8FE8', '#D4A44A', '#E8553B', '#38B887', '#9B59B6', '#E67E22']
+const manifestRoles = manifest?.roles ?? []
+const roleUsers = manifestRoles.map((r: any, i: number) => ({
+  name: r.label ?? r.name,
+  color: roleColors[i % roleColors.length],
+}))
 
 // Compute some stats
 const entityTypeCount = entityTypes.length
@@ -112,7 +139,10 @@ const notificationCount = (manifest?.notifications ?? []).length
         class="rounded-xl p-6 mb-6"
         style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
       >
-        <h3 class="text-sm font-semibold mb-4" style="color:var(--ui-text)">Domain Roles</h3>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold" style="color:var(--ui-text)">Domain Roles</h3>
+          <AvatarStack users={roleUsers} size="sm" max={6} />
+        </div>
         <div class="space-y-3">
           {(manifest.roles as any[]).map((role: any) => (
             <div class="rounded-lg p-4" style="background-color:var(--ui-bg)">
@@ -146,7 +176,10 @@ const notificationCount = (manifest?.notifications ?? []).length
       class="rounded-xl p-6 mb-6"
       style="background-color:var(--ui-bg-subtle);border:1px solid var(--ui-border)"
     >
-      <h3 class="text-sm font-semibold mb-2" style="color:var(--ui-text)">Dashboard & Seed Data</h3>
+      <h3 class="text-sm font-semibold mb-3" style="color:var(--ui-text)">Dashboard & Seed Data</h3>
+      <div class="mb-4">
+        <StepWizard steps={setupSteps} currentStep={setupStep} />
+      </div>
       <p class="text-xs mb-4" style="color:var(--ui-text-muted)">
         Generate custom dashboard pages and realistic seed data using AI. This creates a Home page with widgets, domain-specific pages, and sample records for key entity types.
         {pageCount > 0 && ` Currently ${pageCount} page(s) configured — regenerating will replace them.`}
