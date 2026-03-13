@@ -81,6 +81,21 @@ When the admin names an industry or domain:
 3. **Nothing left out** — if a practitioner would say "you forgot X", you failed. Include edge cases, exception handling workflows, and supporting deliverables.
 4. **Group logically** — organize into phases that mirror how real practitioners actually work, not textbook categories.
 
+## Completeness Checklist
+
+Before finalizing your entity types, verify coverage across ALL of these axes. If any axis has zero entity types, you have a gap — fill it.
+
+1. **Core workflow** — the primary business process, step by step (e.g., planning → execution → reporting → closure)
+2. **Governance & compliance** — regulatory filings, standards, certifications, audits of the audit
+3. **People & roles** — team assignments, approvals, supervision, rotation, independence, conflicts
+4. **Documents & evidence** — workpapers, attachments, review trails, indexing, cross-references
+5. **Testing & validation** — sampling methodology, analytical procedures, test results, extrapolation
+6. **IT & systems** — IT general controls, application controls, SOC reports, data flows, cybersecurity
+7. **Economics** — budgets, time tracking, billing, realization rates, fee arrangements
+8. **External interfaces** — component/subsidiary work, third-party specialists, regulators, correspondences
+9. **Reporting & communication** — committee reports, management letters, stakeholder filings, disclosures
+10. **Quality control** — peer review, supervision, deficiency tracking, lessons learned, firm methodology
+
 ## What You Define
 
 For the container, define:
@@ -174,6 +189,46 @@ Rules for this block:
 
 const SYSTEM_PROMPT = process.env.CONTAINER_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT
 
+const COMPLETENESS_REVIEW_PROMPT = `Review your entity types against the Completeness Checklist in your system prompt. For each of the 10 axes, check if you have adequate coverage.
+
+Identify gaps — axes with zero or weak coverage. Then ADD the missing entity types with name, description, and key_fields.
+
+Do NOT repeat entity types you already defined. Only add NEW ones that fill gaps.
+
+End with an updated \`\`\`json:entity_types block containing ALL entity types (original + new). This block must be cumulative.`
+
+async function callWithEntityTypeRetry(
+  client: any,
+  modelId: string,
+  messages: Array<{ role: string; content: string }>,
+): Promise<string> {
+  let reply = ''
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await client.chat.completions.create({
+      model: modelId,
+      messages,
+      temperature: 0.7,
+    })
+
+    const content = response.choices[0]?.message?.content?.trim()
+    if (!content) throw new ContainerError('Empty response from LLM', 502)
+
+    if (attempt === 0) {
+      reply = content
+    } else {
+      reply = reply + '\n\n' + content
+    }
+    if (reply.includes('```json:entity_types')) break
+
+    messages.push({ role: 'assistant', content })
+    messages.push({
+      role: 'user',
+      content: 'Your response is missing the required ```json:entity_types summary block. Re-read the system prompt instructions under "CRITICAL: Entity Type Summary Block" and append the block now. Return ONLY the ```json:entity_types block with all entity types as a JSON array.',
+    })
+  }
+  return reply
+}
+
 export async function chat(
   containerId: string,
   userMessage: string,
@@ -199,18 +254,28 @@ export async function chat(
     messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content })
   }
 
-  // Call LLM
   const { client } = getClient(provider)
   const modelId = getModel(provider, model)
 
-  const response = await client.chat.completions.create({
-    model: modelId,
-    messages,
-    temperature: 0.7,
-  })
+  // Step 1: Call LLM with retry to enforce json:entity_types block
+  let reply = await callWithEntityTypeRetry(client, modelId, messages)
 
-  const reply = response.choices[0]?.message?.content?.trim()
-  if (!reply) throw new ContainerError('Empty response from LLM', 502)
+  // Step 2: Auto self-review on first message (initial generation)
+  // If this is the first user message, the LLM just proposed entity types — review for completeness
+  const isFirstMessage = history.filter(m => m.role === 'user').length === 1
+  if (isFirstMessage && reply.includes('```json:entity_types')) {
+    messages.push({ role: 'assistant', content: reply })
+    messages.push({
+      role: 'user',
+      content: COMPLETENESS_REVIEW_PROMPT,
+    })
+
+    const reviewReply = await callWithEntityTypeRetry(client, modelId, messages)
+    // Save the initial response, then save the review as a second assistant message
+    await repo.insertMessage({ container_id: containerId, role: 'assistant', content: reply })
+    await repo.insertMessage({ container_id: containerId, role: 'assistant', content: reviewReply })
+    return { reply: reply + '\n\n---\n\n## Completeness Review\n\n' + reviewReply, container }
+  }
 
   // Save assistant reply
   await repo.insertMessage({ container_id: containerId, role: 'assistant', content: reply })
@@ -266,9 +331,12 @@ export async function generateAllSchemas(
   const reports = manifest.reports ?? []
 
   // Type package prompt — asks for ui_spec + data_schema + field_metadata + related_types + document_slots + report_relevance
-  const typePackagePrompt = `Generate a complete **type package** for "{{name}}" ({{description}}).
+  const typePackagePrompt = `You are a veteran practitioner building a production-grade form for "{{name}}" ({{description}}).
 
-Key fields: {{key_fields}}
+Think like someone who uses this form DAILY. Include EVERY field a practitioner needs — not just the obvious ones. A real {{name}} form in production has 15-30+ fields organized into logical sections.
+
+Seed fields (minimum, you MUST include these): {{key_fields}}
+Container: "{{container_name}}"
 {{manifest_context}}
 
 Respond with ONLY a valid JSON object. Do NOT wrap in code fences or markdown.
@@ -279,17 +347,41 @@ EXAMPLE of correct output for entity type "invoice":
     "type": "Container",
     "props": { "title": "Invoice", "padding": "lg" },
     "children": [
-      { "type": "Tabs", "props": { "tabs": ["Details", "Line Items"] }, "children": [
+      { "type": "Tabs", "props": { "tabs": ["Details", "Line Items", "Payment", "Notes"] }, "children": [
+        { "type": "Stack", "props": { "gap": "md" }, "children": [
+          { "type": "Card", "props": { "title": "Invoice Information" }, "children": [
+            { "type": "Grid", "props": { "columns": 3, "gap": "md" }, "children": [
+              { "type": "Input", "props": { "bind": "invoice_number", "label": "Invoice Number" } },
+              { "type": "Select", "props": { "bind": "status", "label": "Status", "options": [{"value":"draft","label":"Draft"},{"value":"sent","label":"Sent"},{"value":"paid","label":"Paid"},{"value":"overdue","label":"Overdue"},{"value":"disputed","label":"Disputed"},{"value":"void","label":"Void"}] } },
+              { "type": "Select", "props": { "bind": "invoice_type", "label": "Type", "options": [{"value":"standard","label":"Standard"},{"value":"recurring","label":"Recurring"},{"value":"credit_note","label":"Credit Note"},{"value":"proforma","label":"Proforma"}] } }
+            ]},
+            { "type": "Grid", "props": { "columns": 3, "gap": "md" }, "children": [
+              { "type": "DatePicker", "props": { "bind": "issue_date", "label": "Issue Date" } },
+              { "type": "DatePicker", "props": { "bind": "due_date", "label": "Due Date" } },
+              { "type": "Input", "props": { "bind": "payment_terms", "label": "Payment Terms" } }
+            ]}
+          ]},
+          { "type": "Card", "props": { "title": "Amounts" }, "children": [
+            { "type": "Grid", "props": { "columns": 4, "gap": "md" }, "children": [
+              { "type": "Input", "props": { "bind": "subtotal", "label": "Subtotal" } },
+              { "type": "Input", "props": { "bind": "tax_amount", "label": "Tax" } },
+              { "type": "Input", "props": { "bind": "discount_amount", "label": "Discount" } },
+              { "type": "Input", "props": { "bind": "total_amount", "label": "Total" } }
+            ]}
+          ]}
+        ]},
+        { "type": "Table", "props": { "bind": "line_items", "columns": [{"key":"description","header":"Description"},{"key":"quantity","header":"Qty"},{"key":"unit_price","header":"Unit Price"},{"key":"amount","header":"Amount"}] } },
         { "type": "Stack", "props": { "gap": "md" }, "children": [
           { "type": "Grid", "props": { "columns": 2, "gap": "md" }, "children": [
-            { "type": "Text", "props": { "content": "Invoice Number", "variant": "label" } },
-            { "type": "Text", "props": { "bind": "invoice_number" } },
-            { "type": "Text", "props": { "content": "Status", "variant": "label" } },
-            { "type": "Select", "props": { "bind": "status", "options": ["draft", "sent", "paid"] } }
+            { "type": "Select", "props": { "bind": "payment_method", "label": "Payment Method", "options": [{"value":"bank_transfer","label":"Bank Transfer"},{"value":"check","label":"Check"},{"value":"credit_card","label":"Credit Card"}] } },
+            { "type": "Input", "props": { "bind": "payment_reference", "label": "Payment Reference" } }
           ]},
-          { "type": "DatePicker", "props": { "bind": "due_date", "label": "Due Date" } }
+          { "type": "DatePicker", "props": { "bind": "payment_date", "label": "Payment Date" } }
         ]},
-        { "type": "Table", "props": { "bind": "line_items_display", "columns": ["Description", "Qty", "Amount"] } }
+        { "type": "Stack", "props": { "gap": "md" }, "children": [
+          { "type": "Textarea", "props": { "bind": "internal_notes", "label": "Internal Notes" } },
+          { "type": "FileUpload", "props": { "bind": "attachments", "label": "Supporting Documents" } }
+        ]}
       ]}
     ]
   },
@@ -297,17 +389,39 @@ EXAMPLE of correct output for entity type "invoice":
     "type": "object",
     "properties": {
       "invoice_number": { "type": "string", "description": "Unique invoice identifier" },
-      "status": { "type": "string", "enum": ["draft", "sent", "paid", "overdue"], "description": "Current invoice status" },
-      "due_date": { "type": "string", "format": "date", "description": "Payment due date" },
-      "total_amount": { "type": "number", "description": "Total invoice amount" }
+      "status": { "type": "string", "enum": ["draft", "sent", "paid", "overdue", "disputed", "void"] },
+      "invoice_type": { "type": "string", "enum": ["standard", "recurring", "credit_note", "proforma"] },
+      "issue_date": { "type": "string", "format": "date" },
+      "due_date": { "type": "string", "format": "date" },
+      "payment_terms": { "type": "string" },
+      "subtotal": { "type": "number" },
+      "tax_amount": { "type": "number" },
+      "discount_amount": { "type": "number" },
+      "total_amount": { "type": "number" },
+      "payment_method": { "type": "string", "enum": ["bank_transfer", "check", "credit_card"] },
+      "payment_reference": { "type": "string" },
+      "payment_date": { "type": "string", "format": "date" },
+      "internal_notes": { "type": "string" },
+      "attachments": { "type": "array", "items": { "type": "string" } }
     },
-    "required": ["invoice_number", "status"]
+    "required": ["invoice_number", "status", "issue_date", "due_date", "total_amount"]
   },
   "field_metadata": {
     "invoice_number": { "default": null, "searchable": true, "sortable": true, "show_in_list": true },
     "status": { "default": "draft", "searchable": true, "sortable": true, "show_in_list": true },
+    "invoice_type": { "default": "standard", "searchable": true, "sortable": false, "show_in_list": false },
+    "issue_date": { "default": null, "searchable": false, "sortable": true, "show_in_list": true },
     "due_date": { "default": null, "searchable": false, "sortable": true, "show_in_list": true },
-    "total_amount": { "default": 0, "searchable": false, "sortable": true, "show_in_list": true }
+    "payment_terms": { "default": "net_30", "searchable": false, "sortable": false, "show_in_list": false },
+    "subtotal": { "default": 0, "searchable": false, "sortable": true, "show_in_list": false },
+    "tax_amount": { "default": 0, "searchable": false, "sortable": false, "show_in_list": false },
+    "discount_amount": { "default": 0, "searchable": false, "sortable": false, "show_in_list": false },
+    "total_amount": { "default": 0, "searchable": false, "sortable": true, "show_in_list": true },
+    "payment_method": { "default": null, "searchable": true, "sortable": false, "show_in_list": false },
+    "payment_reference": { "default": null, "searchable": true, "sortable": false, "show_in_list": false },
+    "payment_date": { "default": null, "searchable": false, "sortable": true, "show_in_list": false },
+    "internal_notes": { "default": null, "searchable": true, "sortable": false, "show_in_list": false },
+    "attachments": { "default": [], "searchable": false, "sortable": false, "show_in_list": false }
   },
   "related_types": [
     { "type": "client", "relation": "belongs_to", "display": "section" },
@@ -321,9 +435,10 @@ NOW generate the type package for "{{name}}" following these STRICT RULES:
 
 RULES:
 - **ui_spec**: Use ONLY this node format: { "type": "ComponentName", "props": {...}, "children": [...] }. Do NOT use "components" key. Use "children" for nested content. Available components: Container, Tabs, Stack, Row, Grid, Card, Text, Heading, Select, DatePicker, FileUpload, Textarea, Table, Checkbox, Badge, Button, Input, Switch, Progress.
-- **bind values**: You MUST use ONLY the key_fields listed above as bind values. Do NOT invent new field names, add suffixes like "_display", or split composite fields into sub-fields. Every bind value must exactly match one of the key_fields. If a key_field is composite (e.g. "financial_information"), bind it as-is to a Textarea or Input.
-- **data_schema**: JSON Schema for THIS entity's OWN direct fields only. Use proper types (string, number, integer, boolean, array). Include "enum" for constrained values. Do NOT include related entity types as array fields (e.g., do NOT add "invoices": {"type": "array", "items": {...}} — related types go in related_types only).
-- **field_metadata**: One entry per field in data_schema. Keys: default, searchable, sortable, show_in_list (all required).
+- **Field completeness**: The seed fields above are the MINIMUM. You MUST add every field a practitioner would need. Think: what would a 10-year veteran expect to fill in on this form? Include status fields, dates, approvals, references, notes, classifications, and attachments. Target 15-30 fields per entity type.
+- **ui_spec structure**: Use Tabs to organize complex forms (3-5 tabs). Use Card within tabs to group related fields. Use Grid (columns: 2-3) for side-by-side fields. Every field needs a "bind" prop matching a data_schema property.
+- **data_schema**: JSON Schema for THIS entity's OWN direct fields only. Use proper types (string, number, integer, boolean, array). Include "enum" with real industry values for constrained fields (e.g., status, type, rating, method). Do NOT include related entity types as array fields — those go in related_types.
+- **field_metadata**: One entry per field in data_schema. Keys: default, searchable, sortable, show_in_list (all required). Mark 4-6 fields as show_in_list: true for the list view.
 - **related_types**: Only include types from the manifest relations listed above. If no relations involve this type, return [].
 - **document_slots**: Only include document names from the manifest documents listed above. If no documents reference this type, return []. Do NOT invent document names.
 - **report_relevance**: Only include report names from the manifest reports listed above. If no reports reference this type, return [].`
@@ -429,6 +544,7 @@ RULES:
         .replace(/\{\{name\}\}/g, et.name)
         .replace(/\{\{description\}\}/g, et.description ?? et.name)
         .replace(/\{\{key_fields\}\}/g, (et.key_fields ?? []).join(', ') || 'infer from domain')
+        .replace(/\{\{container_name\}\}/g, container.name)
         .replace(/\{\{manifest_context\}\}/g, manifestContext || '\n(No relations, documents, or reports reference this type yet)')
 
       const response = await client.chat.completions.create({
@@ -443,14 +559,28 @@ RULES:
       const reply = response.choices[0]?.message?.content?.trim()
       if (!reply) return { name: et.name, success: false, error: 'Empty LLM response' }
 
-      // Extract JSON from response (handle optional code fences)
-      const jsonMatch = reply.match(/```(?:json)?\s*([\s\S]*?)```/) ?? [null, reply]
-      const jsonStr = jsonMatch[1]!.trim()
+      // Extract JSON from response — strip code fences, find first { to last }
+      let jsonStr = reply
+      const fenceMatch = reply.match(/```(?:json)?\s*\n?([\s\S]*?)```/)
+      if (fenceMatch) {
+        jsonStr = fenceMatch[1].trim()
+      }
+      // Fallback: if still not valid JSON, extract from first { to last }
+      if (!jsonStr.startsWith('{')) {
+        const start = jsonStr.indexOf('{')
+        const end = jsonStr.lastIndexOf('}')
+        if (start !== -1 && end !== -1) {
+          jsonStr = jsonStr.slice(start, end + 1)
+        }
+      }
       const pkg = JSON.parse(jsonStr)
 
       // Accept both type-package format and legacy ui_spec-only format
       const uiSpec = pkg.ui_spec ?? pkg
-      const allowedBinds = new Set(et.key_fields ?? [])
+
+      // Validate binds against data_schema properties (the LLM's full field set), not just key_fields
+      const dataSchemaFields = Object.keys(pkg.data_schema?.properties ?? {})
+      const allowedBinds = new Set([...(et.key_fields ?? []), ...dataSchemaFields])
 
       // Deterministic post-validation
       if (allowedBinds.size > 0) {

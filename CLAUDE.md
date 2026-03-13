@@ -73,23 +73,25 @@ Nanostores: `$theme` (light/dark atom), `$formData` (map for input bindings), `b
 
 The prompt generator reads schemas automatically — LLMs immediately know about new components.
 
-## Key Conventions
+## Coding Standards
 
 ### Solid.js
-- `class` not `className`
-- `<Show>`, `<For>`, `<Dynamic>` — not ternaries or `.map()`
-- Props accessed as `props.foo` (not destructured) for reactivity
-- `createSignal` for local, `useStore()` for shared state
+- `class` not `className`; `<Show>`/`<For>`/`<Index>`/`<Dynamic>` not ternaries/`.map()`
+- `props.foo` (not destructured) for reactivity; `createSignal` local, `useStore()` shared
+- `createMemo` for derived values, `createEffect` only for side effects, `onMount`/`onCleanup` for lifecycle
+- Nanostores `atom`/`computed`/`map` for cross-island state — never DOM queries for cross-component communication
+
+### Architecture
+- Astro MPA — server-render everything possible, client JS only for interactive widgets/SSE/forms
+- No N+1 queries — use JOINs, batch lookups, pre-built Maps/Sets; parameterized SQL only
+- `--ui-*` CSS vars for all colors; DOMPurify on innerHTML; `ConfirmDialog`/`showToast()` not alert/confirm
+- Components 80–150 lines, complex 150–250; split on responsibility, extract shared logic at 2+ uses
 
 ### Styling
-- Tailwind CSS v4 (`@import "tailwindcss"` in `src/index.css`)
-- All themed components use `--ui-*` CSS variables from `src/index.css`
-- Dark mode via `.dark` class on parent element
+- Tailwind v4 via `@import "tailwindcss"`; `--ui-*` CSS variables; `.dark` class for dark mode
 
 ### Zod v4
-- Import from `'zod'` (not `'zod/v4'`)
-- `.describe()` for LLM-facing docs
-- `z.discriminatedUnion('type', [...])` for top-level schema
+- Import from `'zod'`; `.describe()` for LLM docs; `z.discriminatedUnion('type', [...])` for top-level
 
 ## Provider Configuration
 

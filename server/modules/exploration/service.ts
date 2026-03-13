@@ -1,5 +1,6 @@
 import * as repo from './repository'
 import * as containerRepo from '../containers/repository'
+import { query as dbQuery } from '../../db/index'
 import type {
   ContainerManifest,
   ExplorationRun,
@@ -21,6 +22,14 @@ export class ExplorationError extends Error {
 }
 
 const STEP_ORDER: StepName[] = ['generate', 'self_review', 'gaps', 'gate']
+
+async function getOriginalUserPrompt(containerId: string): Promise<string> {
+  const result = await dbQuery<{ content: string }>(
+    `SELECT content FROM chat_messages WHERE container_id = $1 AND role = 'user' ORDER BY created_at ASC LIMIT 1`,
+    [containerId],
+  )
+  return result.rows[0]?.content ?? ''
+}
 
 // ============================================================================
 // Start Exploration
@@ -89,9 +98,13 @@ export async function executeNextStep(
   const completedSteps = await repo.findStepsByRun(run.id)
   const completedDimensions = getCompletedDimensions(completedSteps, dimensions)
 
+  // Fetch user's original prompt for domain context
+  const userPrompt = await getOriginalUserPrompt(run.container_id)
+
   const context: Record<string, any> = {
     allDimensions: dimensions.map(d => d.label),
     completedDimensions: completedDimensions.map(d => d.label),
+    userPrompt,
   }
 
   // For self_review, include previous generate output
@@ -118,7 +131,7 @@ export async function executeNextStep(
     const response = await client.chat.completions.create({
       model: modelId,
       messages: [
-        { role: 'system', content: `You are an expert industry analyst performing a structured exploration of the "${container.name}" domain. Be thorough, specific, and use real industry terminology.` },
+        { role: 'system', content: `You are an expert industry analyst performing a structured exploration of the "${container.name}" domain.${userPrompt ? ` The user specifically requested: "${userPrompt}". Align all entity types, terminology, and structure to this domain context.` : ''} Be thorough, specific, and use real industry terminology.` },
         { role: 'user', content: prompt },
       ],
       temperature: 0.7,

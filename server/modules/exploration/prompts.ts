@@ -21,6 +21,11 @@ const DIMENSION_ARTIFACTS: Record<string, string> = {
 // Universal step wrappers (from env or defaults)
 const GENERATE_WRAPPER = process.env.EXPLORATION_GENERATE_WRAPPER ?? `You are exploring the "{{dimension_label}}" dimension for the "{{container_name}}" application.
 
+## User's Original Request
+{{user_prompt}}
+
+Use this context to guide your analysis — entity types, terminology, and structure should reflect the specific domain described above, not generic industry patterns.
+
 Current manifest state:
 {{manifest_summary}}
 
@@ -41,6 +46,9 @@ Respond with a structured analysis. At the end, include a JSON block wrapped in 
 \`\`\``
 
 const REVIEW_WRAPPER = process.env.EXPLORATION_REVIEW_WRAPPER ?? `You are self-reviewing your "{{dimension_label}}" analysis for "{{container_name}}".
+
+## User's Original Request
+{{user_prompt}}
 
 Your previous output:
 {{previous_output}}
@@ -67,6 +75,9 @@ Provide your review, then a JSON block:
 \`\`\``
 
 const GAPS_WRAPPER = process.env.EXPLORATION_GAPS_WRAPPER ?? `You are identifying gaps in the "{{dimension_label}}" dimension for "{{container_name}}".
+
+## User's Original Request
+{{user_prompt}}
 
 Full manifest after generation + review:
 {{manifest_summary}}
@@ -120,6 +131,7 @@ export function buildPrompt(
     stepSummaries?: string
     allDimensions?: string[]
     completedDimensions?: string[]
+    userPrompt?: string
   } = {},
 ): string {
   const manifestSummary = buildManifestSummary(manifest)
@@ -134,6 +146,7 @@ export function buildPrompt(
     '{{container_name}}': containerName,
     '{{manifest_summary}}': manifestSummary,
     '{{dimension_artifacts}}': dimensionArtifacts,
+    '{{user_prompt}}': context.userPrompt ?? containerName,
     '{{previous_output}}': context.previousOutput ?? '',
     '{{step_summaries}}': context.stepSummaries ?? '',
     '{{all_dimensions}}': (context.allDimensions ?? []).join(', '),
