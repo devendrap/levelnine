@@ -48,6 +48,7 @@ const allPages = await getPages(container.id)
   userRole={user.role}
   activeType={typeName}
   pages={allPages}
+  pageContext={{ page: 'detail', entityType: typeName, entityId: entityId, entityStatus: entity.status }}
   breadcrumbs={[
     { label, href: `/apps/${container.slug}/${typeName}` },
     { label: entity.name },
@@ -128,4 +129,5 @@ const allPages = await getPages(container.id)
       </div>
     </div>
   )}
+
 </AppLayout>

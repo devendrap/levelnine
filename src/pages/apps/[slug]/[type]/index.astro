@@ -62,6 +62,7 @@ const paginationBaseUrl = `/apps/${container.slug}/${typeName}?${status ? `statu
   activeType={typeName}
   pages={allPages}
   breadcrumbs={[{ label }]}
+  pageContext={{ page: 'list', entityType: typeName }}
 >
   {isMasterDetail ? (
     <div class="h-[calc(100vh-56px)]">
@@ -263,4 +264,5 @@ const paginationBaseUrl = `/apps/${container.slug}/${typeName}?${status ? `statu
       })
     </script>
   )}
+
 </AppLayout>

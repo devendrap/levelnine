@@ -60,6 +60,7 @@ const roleUsers = manifestRoles.map((r: any, i: number) => ({
   userName={user.email}
   userRole={user.role}
   pages={allPages}
+  pageContext={{ page: 'dashboard' }}
 >
   {defaultPage ? (
     <div class="max-w-6xl mx-auto px-8 py-8">
@@ -257,4 +258,5 @@ const roleUsers = manifestRoles.map((r: any, i: number) => ({
       { title: 'Track Status', description: 'Use workflows and status badges to manage your process.' },
     ]}
   />
+
 </AppLayout>

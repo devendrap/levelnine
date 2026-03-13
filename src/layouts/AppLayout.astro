@@ -2,6 +2,7 @@
 import Base from './Base.astro'
 import AppHeader from '../components/apps/AppHeader.astro'
 import AppSidebar from '../components/apps/AppSidebar.astro'
+import AppAssistantIsland from '../islands/AppAssistantIsland.tsx'
 import type { Container, EntityType } from '../../server/core/types/index'
 import '../index.css'
 
@@ -14,9 +15,10 @@ interface Props {
   activePage?: string
   pages?: any[]
   breadcrumbs?: Array<{ label: string; href?: string }>
+  pageContext?: { page: string; entityType?: string; entityId?: string; entityStatus?: string }
 }
 
-const { container, entityTypes, userName, userRole, activeType, activePage, pages, breadcrumbs } = Astro.props
+const { container, entityTypes, userName, userRole, activeType, activePage, pages, breadcrumbs, pageContext } = Astro.props
 const pageTitle = activeType
   ? `${activeType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} — ${container.name}`
   : container.name
@@ -44,6 +46,12 @@ const pageTitle = activeType
         <slot />
       </main>
     </div>
+    <AppAssistantIsland
+      client:only="solid-js"
+      containerId={container.id}
+      slug={container.slug!}
+      pageContext={pageContext ?? { page: 'dashboard' }}
+    />
   </div>
 
   <script is:inline define:vars={{ slug: container.slug }}>
